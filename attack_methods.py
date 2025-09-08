@@ -246,7 +246,7 @@ def attack_hammer(target, duration):
     ip, port = resolve_target(target)
     
     # Thread count control
-    threads_count = min(135, MAX_THREADS // 2)  # Limit threads to prevent overload
+    threads_count = 135
     
     # Queues for tasks
     q = Queue()
