@@ -46,14 +46,14 @@ performance_stats = {
 
 # Configuration
 OPTIMAL_CONFIG = {
-    "syn_flood": {"threads": 5, "duration": 60},
+    "syn_flood": {"threads": 8, "duration": 60},
     "udp_flood": {"threads": 8, "duration": 60, "packet_size": 1024},
     "http_flood": {"threads": 10, "duration": 60},
     "slowloris": {"sockets_count": 100, "duration": 300},
     "cloudflare_bypass": {"threads": 15, "duration": 60},
-    "goldeneye": {"threads": 8, "duration": 60},
-    "udp_amplification": {"threads": 3, "duration": 60},
-    "tcp_mixed": {"threads": 6, "duration": 60},
+    "goldeneye": {"threads": 12, "duration": 60},
+    "udp_amplification": {"threads": 8, "duration": 60},
+    "tcp_mixed": {"threads": 10, "duration": 60},
 }
 
 # GitHub proxy list URL
