@@ -47,7 +47,7 @@ performance_stats = {
 # Configuration
 OPTIMAL_CONFIG = {
     "syn_flood": {"threads": 5, "duration": 60},
-    "udp_flood": {"threads": 100, "duration": 60, "packet_size": 10024},
+    "udp_flood": {"threads": 20, "duration": 60, "packet_size": 3024},
     "http_flood": {"threads": 10, "duration": 60},
     "slowloris": {"sockets_count": 100, "duration": 300},
     "cloudflare_bypass": {"threads": 15, "duration": 60},
