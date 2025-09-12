@@ -53,7 +53,7 @@ OPTIMAL_CONFIG = {
     "cloudflare_bypass": {"threads": 16, "duration": 60},
     "goldeneye": {"threads": 12, "duration": 300},  # Longer duration
     "udp_amplification": {"threads": 16, "duration": 60},
-    "tcp_mixed": {"threads": 10, "duration": 60},
+    "tcp_mixed": {"threads": 16, "duration": 60},
 }
 
 # GitHub proxy list URL
