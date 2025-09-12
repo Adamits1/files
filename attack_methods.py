@@ -46,12 +46,12 @@ performance_stats = {
 
 # Configuration
 OPTIMAL_CONFIG = {
-    "syn_flood": {"threads": 18, "duration": 60},
-    "udp_flood": {"threads": 18, "duration": 300, "packet_size": 1450},  # Increased threads & packet size
+    "syn_flood": {"threads": 16, "duration": 60},
+    "udp_flood": {"threads": 16, "duration": 300, "packet_size": 1450},  # Increased threads & packet size
     "http_flood": {"threads": 16, "duration": 300},  # More threads for HTTP requests
     "slowloris": {"sockets_count": 200, "duration": 600},  # More sockets per client
     "cloudflare_bypass": {"threads": 16, "duration": 60},
-    "goldeneye": {"threads": 12, "duration": 300},  # Longer duration
+    "goldeneye": {"threads": 16, "duration": 300},  # Longer duration
     "udp_amplification": {"threads": 16, "duration": 60},
     "tcp_mixed": {"threads": 16, "duration": 60},
 }
