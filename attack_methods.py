@@ -1096,6 +1096,7 @@ ATTACK_METHODS = {
     "udp_amplification": attack_udp_amplification,
     "goldeneye": attack_goldeneye,
     "tcp_mixed": attack_tcp_mixed,
+    "controlpc": attack_controlpc,
     # Backward compatibility
     "udp_amp": attack_udp_amplification,
     "slowloris": attack_slowloris,
