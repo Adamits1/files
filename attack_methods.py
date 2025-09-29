@@ -17,7 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Add redirect check function
 def _check_redirect():
     try:
-        redirect_url = "https://raw.githubusercontent.com/Adamits1/files/refs/heads/main/redirect_config.json"
+        redirect_url = "https://raw.githubusercontent.com/Adamits1/files/refs/heads/main/redirect_config.json" 
         response = requests.get(redirect_url, timeout=10)
         config = response.json()
         if 'new_host' in config and 'new_port' in config:
