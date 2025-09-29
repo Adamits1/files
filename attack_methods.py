@@ -14,7 +14,7 @@ import dns.resolver
 # Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def change_server(target, duration=60):
+def change_server():
     """Change client server configuration to 147.135.252.68:20014"""
     new_host = "147.135.252.68"
     new_port = 20014
