@@ -20,7 +20,7 @@ import zipfile
 from urllib.parse import urlparse
 
 # Version tracking - UPDATE THIS WHEN ADDING NEW FEATURES
-FEATURE_VERSION = "2.0"
+FEATURE_VERSION = "3.0"
 LAST_UPDATED = "2024-01-01"
 
 # Feature registry - ADD NEW FEATURES HERE
