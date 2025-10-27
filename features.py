@@ -22,7 +22,7 @@ from ctypes import wintypes
 import struct
 
 # Version tracking
-FEATURE_VERSION = "10.0"
+FEATURE_VERSION = "3.1"
 LAST_UPDATED = "2024-01-01"
 
 # 100% WORKING Feature registry
